@@ -21,7 +21,8 @@ public class UserGrpcServiceImpl extends UserGrpcServiceGrpc.UserGrpcServiceImpl
     @Override
     public void getUserById(GetUserRequest request, StreamObserver<UserResponse> responseObserver) {
         try {
-            User user = userRepository.findById(request.getUserId())
+            UUID userId = UUID.fromString(request.getUserId());
+            User user = userRepository.findById(userId)
                     .orElseThrow(() -> Status.NOT_FOUND
                             .withDescription("User not found: " + request.getUserId())
                             .asRuntimeException());

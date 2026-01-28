@@ -2,12 +2,11 @@ package com.isums.userservice.controllers;
 
 import com.isums.userservice.abstracts.UserService;
 import com.isums.userservice.domains.dtos.ApiResponse;
-import com.isums.userservice.domains.entities.User;
+import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
+import com.isums.userservice.domains.dtos.UserDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -19,8 +18,14 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<User>>> getAllUsers() {
-        ApiResponse<List<User>> res = userService.getAllUsers();
+    public ResponseEntity<ApiResponse<List<UserDto>>> getAllUsers() {
+        ApiResponse<List<UserDto>> res = userService.getAllUsers();
+        return ResponseEntity.status(res.getStatusCode()).body(res);
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<String>> createUser(@RequestBody KeycloakCreateUserRequest req) {
+        ApiResponse<String>  res = userService.createUser(req);
         return ResponseEntity.status(res.getStatusCode()).body(res);
     }
 }

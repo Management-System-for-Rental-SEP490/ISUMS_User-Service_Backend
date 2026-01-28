@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -34,7 +35,13 @@ public class User implements Serializable {
     @Column(nullable = false, unique = true)
     private String email;
 
+    private String phoneNumber;
+
     @Column(nullable = false)
     private String identityNumber;
+
+    private Instant createdAt;
+
+    private Instant updatedAt;
 }
 

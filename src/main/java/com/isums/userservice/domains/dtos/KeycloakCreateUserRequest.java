@@ -1,0 +1,17 @@
+package com.isums.userservice.domains.dtos;
+
+import org.jspecify.annotations.Nullable;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+public record KeycloakCreateUserRequest(
+        @Nullable UUID id,
+        String email,
+        Boolean enabled,
+        Boolean emailVerified,
+        String identityNumber,
+        String name,
+        Map<String, List<String>> attributes
+) {}
