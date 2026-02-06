@@ -2,7 +2,7 @@ package com.isums.userservice.infrastructures.grpc;
 
 import com.isums.userservice.domains.entities.User;
 import com.isums.userservice.grpc.GetUserRequest;
-import com.isums.userservice.grpc.UserGrpcServiceGrpc;
+import com.isums.userservice.grpc.UserServiceGrpc;
 import com.isums.userservice.grpc.UserResponse;
 import com.isums.userservice.infrastructures.repositories.UserRepository;
 import io.grpc.Status;
@@ -14,7 +14,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class UserGrpcServiceImpl extends UserGrpcServiceGrpc.UserGrpcServiceImplBase {
+public class UserGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
 
     private final UserRepository userRepository;
 
