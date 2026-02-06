@@ -1,4 +1,4 @@
-package com.isums.userservice.abstracts;
+package com.isums.userservice.infrastructures.abstracts;
 
 import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
 

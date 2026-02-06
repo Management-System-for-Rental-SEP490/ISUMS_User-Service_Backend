@@ -1,13 +1,16 @@
 package com.isums.userservice.services;
 
 import com.isums.userservice.domains.dtos.*;
-import com.isums.userservice.abstracts.UserService;
+import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.entities.User;
+import com.isums.userservice.domains.mapper.UserMapper;
 import com.isums.userservice.exceptions.ConflictException;
 import com.isums.userservice.infrastructures.client.KeycloakClientImpl;
 import com.isums.userservice.infrastructures.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,32 +19,30 @@ import java.time.Instant;
 import java.util.List;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    private final UserQuery userQuery;
     private final KeycloakClientImpl keycloakClient;
     private final UserRepository userRepository;
+    private final UserMapper userMapper;
 
     @Override
-    public ApiResponse<List<UserDto>> getAllUsers() {
-        List<UserDto> mapUsers = userQuery.getAllUsersCached();
-        return ApiResponses.ok(mapUsers, "Fetched users successfully");
+    @Transactional(readOnly = true)
+    @Cacheable(value = "allUsers", sync = true)
+    public List<UserDto> getAllUsers() {
+        List<User> users = userRepository.findAll();
+        return userMapper.mapUsers(users);
     }
 
     @Override
     @Transactional
     @CacheEvict(cacheNames = "allUsers", allEntries = true)
-    public ApiResponse<String> createUser(KeycloakCreateUserRequest req) {
-        if (req == null)
-            throw new IllegalArgumentException("Request is required");
-        if (req.email() == null || req.email().isBlank())
-            throw new IllegalArgumentException("Email is required");
-        if (req.identityNumber() == null || req.identityNumber().isBlank())
-            throw new IllegalArgumentException("Identity number is required");
+    public String createUser(KeycloakCreateUserRequest req) {
 
-        boolean isExistEmail = userQuery.isEmailExists(req.email());
+        boolean isExistEmail = userRepository.existsByEmail(req.email());
         if (isExistEmail) {
+            log.warn("Email already exists:  {}", req.email());
             throw new ConflictException("Email " + req.email() + " already exists");
         }
 
@@ -60,12 +61,11 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         userRepository.save(user);
-
-        return ApiResponses.created(keycloakUserId, "Created user successfully");
+        return keycloakUserId;
     }
 
     @Override
-    public ApiResponse<UserDto> ensureUserExistsFromToken(Jwt jwt) {
+    public UserDto ensureUserExistsFromToken(Jwt jwt) {
         return null;
     }
 }
