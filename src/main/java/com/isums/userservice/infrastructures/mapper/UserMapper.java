@@ -1,4 +1,4 @@
-package com.isums.userservice.domains.mapper;
+package com.isums.userservice.infrastructures.mapper;
 
 import com.isums.userservice.domains.dtos.UserDto;
 import com.isums.userservice.domains.entities.User;
