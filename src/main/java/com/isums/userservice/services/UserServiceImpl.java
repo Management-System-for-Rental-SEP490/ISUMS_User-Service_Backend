@@ -3,7 +3,7 @@ package com.isums.userservice.services;
 import com.isums.userservice.domains.dtos.*;
 import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.entities.User;
-import com.isums.userservice.domains.mapper.UserMapper;
+import com.isums.userservice.infrastructures.mapper.UserMapper;
 import com.isums.userservice.exceptions.ConflictException;
 import com.isums.userservice.infrastructures.client.KeycloakClientImpl;
 import com.isums.userservice.infrastructures.repositories.UserRepository;
