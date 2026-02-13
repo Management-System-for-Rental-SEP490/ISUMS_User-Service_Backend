@@ -52,6 +52,7 @@ public class UserServiceImpl implements UserService {
         }
 
         User user = User.builder()
+                .id(req.id())
                 .keycloakId(keycloakUserId)
                 .email(req.email())
                 .name(req.name())

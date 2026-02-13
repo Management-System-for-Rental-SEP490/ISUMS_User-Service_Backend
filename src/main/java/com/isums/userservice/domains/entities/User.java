@@ -22,8 +22,6 @@ import java.util.UUID;
 @Builder
 public class User implements Serializable {
     @Id
-    @GeneratedValue
-    @UuidGenerator
     private UUID id;
 
     @Column(nullable = false, unique = true)
