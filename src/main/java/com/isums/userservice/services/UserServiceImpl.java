@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -53,10 +54,11 @@ public class UserServiceImpl implements UserService {
 
         User user = User.builder()
                 .id(req.id())
-                .keycloakId(keycloakUserId)
+                .keycloakId(UUID.fromString(keycloakUserId))
                 .email(req.email())
                 .name(req.name())
                 .identityNumber(req.identityNumber())
+                .isEnabled(req.isEnabled())
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
