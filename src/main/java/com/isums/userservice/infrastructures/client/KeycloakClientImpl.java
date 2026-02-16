@@ -92,7 +92,7 @@ public class KeycloakClientImpl implements KeycloakClient {
                 req.id() != null ? req.id() : null,
                 req.email(),
                 req.email(),
-                req.enabled() != null ? req.enabled() : true,
+                req.isEnabled(),
                 req.emailVerified() != null ? req.emailVerified() : true,
                 mergeAttributes(req.attributes(), req.identityNumber(), req.name())
         );

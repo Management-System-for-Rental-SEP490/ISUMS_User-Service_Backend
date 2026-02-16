@@ -20,7 +20,7 @@ public class EContractEventListener {
         KeycloakCreateUserRequest request = new KeycloakCreateUserRequest(
                 event.getId(),
                 event.getEmail(),
-                false,
+                event.getIsEnabled(),
                 false,
                 event.getPhoneNumber(),
                 event.getIdentityNumber(),
