@@ -1,4 +1,4 @@
-package com.isums.userservice.abstracts;
+package com.isums.userservice.infrastructures.abstracts;
 
 import com.isums.userservice.domains.dtos.ApiResponse;
 import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
@@ -10,7 +10,7 @@ import java.util.List;
 
 public interface UserService {
 
-    public ApiResponse<List<UserDto>> getAllUsers();
-    public ApiResponse<String> createUser(KeycloakCreateUserRequest req);
-    public ApiResponse<UserDto> ensureUserExistsFromToken(Jwt jwt);
+    public List<UserDto> getAllUsers();
+    public String createUser(KeycloakCreateUserRequest req);
+    public UserDto ensureUserExistsFromToken(Jwt jwt);
 }

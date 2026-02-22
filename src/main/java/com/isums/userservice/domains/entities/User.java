@@ -5,10 +5,12 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.io.Serializable;
-import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -21,13 +23,13 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class User implements Serializable {
+
     @Id
-    @GeneratedValue
-    @UuidGenerator
+    @Column(columnDefinition = "uuid")
     private UUID id;
 
-    @Column(nullable = false, unique = true)
-    private String keycloakId;
+    @Column(name = "keycloak_id", nullable = false, unique = true, columnDefinition = "uuid")
+    private UUID keycloakId;
 
     @Column(nullable = false)
     private String name;
@@ -35,13 +37,30 @@ public class User implements Serializable {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(name = "phone_number")
     private String phoneNumber;
 
-    @Column(nullable = false)
+    @Column(name = "identity_number", nullable = false)
     private String identityNumber;
 
-    private Instant createdAt;
+    @Column(name = "is_enabled", nullable = false)
+    private boolean isEnabled;
 
-    private Instant updatedAt;
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private java.time.Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private java.time.Instant updatedAt;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+
+    private Set<Role> roles = new HashSet<>();
 }
 

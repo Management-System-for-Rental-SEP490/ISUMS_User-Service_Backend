@@ -1,6 +1,6 @@
 package com.isums.userservice.infrastructures.listeners;
 
-import com.isums.userservice.abstracts.UserService;
+import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
 import com.isums.userservice.domains.events.CreateUserPlacedEvent;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ public class EContractEventListener {
         KeycloakCreateUserRequest request = new KeycloakCreateUserRequest(
                 event.getId(),
                 event.getEmail(),
-                false,
+                event.getIsEnabled(),
                 false,
                 event.getPhoneNumber(),
                 event.getIdentityNumber(),

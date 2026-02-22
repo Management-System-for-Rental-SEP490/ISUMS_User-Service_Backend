@@ -9,7 +9,7 @@ import java.util.UUID;
 public record KeycloakCreateUserRequest(
         @Nullable UUID id,
         String email,
-        Boolean enabled,
+        Boolean isEnabled,
         Boolean emailVerified,
         String identityNumber,
         String name,

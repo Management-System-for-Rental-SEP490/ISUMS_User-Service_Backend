@@ -1,6 +1,6 @@
 package com.isums.userservice.infrastructures.client;
 
-import com.isums.userservice.abstracts.KeycloakClient;
+import com.isums.userservice.infrastructures.abstracts.KeycloakClient;
 import com.isums.userservice.configurations.KeycloakProperties;
 import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
 import com.isums.userservice.domains.dtos.KeycloakTokenResponse;
@@ -13,7 +13,6 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
-import tools.jackson.databind.ser.jdk.ObjectArraySerializer;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -57,7 +56,7 @@ public class KeycloakClientImpl implements KeycloakClient {
     }
 
     private KeycloakTokenResponse requestAccessToken() {
-        final String uri = "/realms/isums-realm/protocol/openid-connect/token";
+        final String uri = "/realms/" + props.getRealm() + "/protocol/openid-connect/token";
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "client_credentials");
@@ -86,14 +85,14 @@ public class KeycloakClientImpl implements KeycloakClient {
     public String createUser(KeycloakCreateUserRequest req) {
         Objects.requireNonNull(req, "KeycloakCreateUserRequest cannot be null");
 
-        final String uri = "/admin/realms/isums-realm/users";
+        final String uri = "/admin/realms/" + props.getRealm() +"/users";
         String token = getAccessToken();
 
         KeycloakUserRepresentation payload = new KeycloakUserRepresentation(
                 req.id() != null ? req.id() : null,
                 req.email(),
                 req.email(),
-                req.enabled() != null ? req.enabled() : true,
+                req.isEnabled(),
                 req.emailVerified() != null ? req.emailVerified() : true,
                 mergeAttributes(req.attributes(), req.identityNumber(), req.name())
         );
