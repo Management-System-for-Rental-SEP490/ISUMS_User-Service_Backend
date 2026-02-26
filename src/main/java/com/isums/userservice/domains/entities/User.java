@@ -29,7 +29,7 @@ public class User implements Serializable {
     private UUID id;
 
     @Column(name = "keycloak_id", nullable = false, unique = true, columnDefinition = "uuid")
-    private UUID keycloakId;
+    private String keycloakId;
 
     @Column(nullable = false)
     private String name;
