@@ -21,12 +21,18 @@ public class UserController {
     @GetMapping
     public ApiResponse<List<UserDto>> getAllUsers() {
         List<UserDto> res = userService.getAllUsers();
-        return ApiResponses.ok(res,"success to get all users");
+        return ApiResponses.ok(res, "success to get all users");
     }
 
     @PostMapping
     public ApiResponse<String> createUser(@RequestBody KeycloakCreateUserRequest req) {
         String res = userService.createUser(req);
         return ApiResponses.created(res, "success to create user");
+    }
+
+    @GetMapping("/{email}")
+    public ApiResponse<UserDto> getUserByEmail(@PathVariable String email) {
+        UserDto res = userService.getUserByEmail(email);
+        return ApiResponses.ok(res, "success to get user by email");
     }
 }
