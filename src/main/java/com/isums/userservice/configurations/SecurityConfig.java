@@ -14,7 +14,17 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/prometheus").permitAll()
+                        .requestMatchers(
+                                "/actuator/prometheus",
+                                "/api/users/v3/api-docs",
+                                "/api/users/v3/api-docs/**",
+                                "/api/users/swagger",
+                                "/api/users/swagger/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs",
+                                "/v3/api-docs/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

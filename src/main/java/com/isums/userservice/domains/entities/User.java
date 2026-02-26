@@ -44,7 +44,7 @@ public class User implements Serializable {
     private String identityNumber;
 
     @Column(name = "is_enabled", nullable = false)
-    private boolean isEnabled;
+    private Boolean isEnabled;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
