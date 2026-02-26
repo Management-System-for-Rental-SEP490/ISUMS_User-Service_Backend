@@ -68,7 +68,10 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDto ensureUserExistsFromToken(Jwt jwt) {
-        return null;
+    @Cacheable(value = "userByEmail", key = "#email")
+    public UserDto getUserByEmail(String email) {
+        User user = userRepository.findByEmail(email);
+        return userMapper.mapUser(user);
     }
+
 }

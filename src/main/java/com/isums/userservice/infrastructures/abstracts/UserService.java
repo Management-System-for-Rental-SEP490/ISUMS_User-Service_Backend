@@ -12,5 +12,5 @@ public interface UserService {
 
     public List<UserDto> getAllUsers();
     public String createUser(KeycloakCreateUserRequest req);
-    public UserDto ensureUserExistsFromToken(Jwt jwt);
+    public UserDto getUserByEmail(String email);
 }
