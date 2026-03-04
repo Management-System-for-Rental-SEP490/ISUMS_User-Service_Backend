@@ -34,6 +34,7 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
                     .setName(user.getName())
                     .setEmail(user.getEmail())
                     .setIdentityNumber(user.getIdentityNumber())
+                    .setIsEnabled(user.getIsEnabled())
                     .build();
 
             responseObserver.onNext(response);
@@ -68,6 +69,7 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
                     .setName(user.getName())
                     .setEmail(user.getEmail())
                     .setIdentityNumber(user.getIdentityNumber())
+                    .setIsEnabled(user.getIsEnabled())
                     .build();
 
             responseObserver.onNext(response);

@@ -29,7 +29,7 @@ public class User implements Serializable {
     private UUID id;
 
     @Column(name = "keycloak_id", nullable = false, unique = true, columnDefinition = "uuid")
-    private UUID keycloakId;
+    private String keycloakId;
 
     @Column(nullable = false)
     private String name;
@@ -44,7 +44,7 @@ public class User implements Serializable {
     private String identityNumber;
 
     @Column(name = "is_enabled", nullable = false)
-    private boolean isEnabled;
+    private Boolean isEnabled;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
