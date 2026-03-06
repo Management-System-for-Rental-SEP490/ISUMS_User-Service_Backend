@@ -54,7 +54,7 @@ public class UserServiceImpl implements UserService {
 
         User user = User.builder()
                 .id(req.id())
-                .keycloakId(UUID.fromString(keycloakUserId))
+                .keycloakId(keycloakUserId)
                 .email(req.email())
                 .name(req.name())
                 .identityNumber(req.identityNumber())
@@ -68,7 +68,14 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDto ensureUserExistsFromToken(Jwt jwt) {
-        return null;
+    @Cacheable(value = "userByEmail", key = "#email")
+    public UserDto getUserByEmail(String email) {
+        User user = userRepository.findByEmail(email);
+
+        if(user == null) {
+            throw new IllegalStateException("User not found");
+        }
+        return userMapper.mapUser(user);
     }
+
 }
