@@ -68,6 +68,13 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
             String email = request.getEmail();
             User user = userRepository.findByEmail(email);
 
+            if (user == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("User not found with email: " + email)
+                        .asRuntimeException());
+                return;
+            }
+
             UserResponse response = UserResponse.newBuilder()
                     .setId(user.getId().toString())
                     .setName(user.getName())
