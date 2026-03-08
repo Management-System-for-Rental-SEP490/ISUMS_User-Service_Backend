@@ -53,14 +53,5 @@ public class User implements Serializable {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private java.time.Instant updatedAt;
-
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
-
-    private Set<Role> roles = new HashSet<>();
 }
 
