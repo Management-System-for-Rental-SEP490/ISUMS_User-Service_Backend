@@ -60,6 +60,7 @@ public class UserServiceImpl implements UserService {
                 .email(req.email())
                 .name(req.name())
                 .identityNumber(req.identityNumber())
+                .phoneNumber(req.phoneNumber())
                 .isEnabled(req.isEnabled())
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
