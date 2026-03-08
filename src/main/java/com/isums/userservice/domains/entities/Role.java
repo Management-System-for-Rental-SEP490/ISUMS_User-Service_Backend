@@ -34,7 +34,4 @@ public class Role {
 
     @Column(columnDefinition="text")
     private String description;
-
-    @ManyToMany(mappedBy = "roles")
-    private Set<User> users = new HashSet<>();
 }

@@ -1,6 +1,7 @@
 package com.isums.userservice.services;
 
 import com.isums.userservice.domains.dtos.*;
+import com.isums.userservice.exceptions.NotFoundException;
 import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.entities.User;
 import com.isums.userservice.infrastructures.mapper.UserMapper;
@@ -27,6 +28,7 @@ public class UserServiceImpl implements UserService {
     private final KeycloakClientImpl keycloakClient;
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final UserRoleCacheServiceImpl userRoleCacheServiceImpl;
 
     @Override
     @Transactional(readOnly = true)
@@ -78,4 +80,20 @@ public class UserServiceImpl implements UserService {
         return userMapper.mapUser(user);
     }
 
+    @Override
+    public UserProfileDto getMe(String keycloakId) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        List<String> roles = userRoleCacheServiceImpl.getRolesCached(keycloakId);
+
+        return UserProfileDto.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .identityNumber(user.getIdentityNumber())
+                .phoneNumber(user.getPhoneNumber())
+                .roles(roles)
+                .build();
+    }
 }
