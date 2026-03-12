@@ -12,6 +12,7 @@ public record KeycloakCreateUserRequest(
         Boolean isEnabled,
         Boolean emailVerified,
         String identityNumber,
+        String phoneNumber,
         String name,
         Map<String, List<String>> attributes
 ) {}

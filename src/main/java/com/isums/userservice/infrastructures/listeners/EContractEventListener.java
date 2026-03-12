@@ -4,6 +4,7 @@ import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
 import com.isums.userservice.domains.events.CreateUserPlacedEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +13,7 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class EContractEventListener {
     private final UserService userService;
 
@@ -22,10 +24,19 @@ public class EContractEventListener {
                 event.getEmail(),
                 event.getIsEnabled(),
                 false,
-                event.getPhoneNumber(),
                 event.getIdentityNumber(),
+                event.getPhoneNumber(),
+                event.getName(),
                 Map.of("roles", List.of("USER"))
         );
-        userService.createUser(request);
+        try {
+            userService.createUser(request);
+        } catch (IllegalStateException ex) {
+            if (ex.getMessage() != null && ex.getMessage().contains("409")) {
+                log.warn("User already exists in Keycloak, skipping: {}", event.getEmail());
+                return;
+            }
+            throw ex;
+        }
     }
 }
