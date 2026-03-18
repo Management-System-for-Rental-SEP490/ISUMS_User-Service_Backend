@@ -10,6 +10,6 @@ public class GrpcClientsConfig {
 
     @Bean
     UserServiceGrpc.UserServiceBlockingStub houseStub(GrpcChannelFactory channels) {
-        return UserServiceGrpc.newBlockingStub(channels.createChannel("user-service"));
+        return UserServiceGrpc.newBlockingStub(channels.createChannel("user"));
     }
 }

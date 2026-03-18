@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,7 +74,7 @@ public class UserServiceImpl implements UserService {
     public UserDto getUserByEmail(String email) {
         User user = userRepository.findByEmail(email);
 
-        if(user == null) {
+        if (user == null) {
             throw new IllegalStateException("User not found");
         }
         return userMapper.mapUser(user);
@@ -96,5 +95,14 @@ public class UserServiceImpl implements UserService {
                 .phoneNumber(user.getPhoneNumber())
                 .roles(roles)
                 .build();
+    }
+
+    @Override
+    public void activeUser(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        user.setIsEnabled(true);
+        keycloakClient.activeUser(user.getKeycloakId());
     }
 }

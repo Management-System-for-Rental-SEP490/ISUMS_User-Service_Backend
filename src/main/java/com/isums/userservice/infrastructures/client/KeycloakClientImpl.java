@@ -6,6 +6,7 @@ import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
 import com.isums.userservice.domains.dtos.KeycloakTokenResponse;
 import com.isums.userservice.domains.dtos.KeycloakUserRepresentation;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -25,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class KeycloakClientImpl implements KeycloakClient {
 
     private final RestClient keycloakRestClient;
@@ -85,7 +87,7 @@ public class KeycloakClientImpl implements KeycloakClient {
     public String createUser(KeycloakCreateUserRequest req) {
         Objects.requireNonNull(req, "KeycloakCreateUserRequest cannot be null");
 
-        final String uri = "/admin/realms/" + props.getRealm() +"/users";
+        final String uri = "/admin/realms/" + props.getRealm() + "/users";
         String token = getAccessToken();
 
         KeycloakUserRepresentation payload = new KeycloakUserRepresentation(
@@ -138,9 +140,33 @@ public class KeycloakClientImpl implements KeycloakClient {
 
         if (identityNumber != null && !identityNumber.isBlank()) {
             merged.put("identityNumber", List.of(identityNumber));
-            merged.put("name",  List.of(name));
+            merged.put("name", List.of(name));
         }
 
         return merged.isEmpty() ? null : merged;
+    }
+
+    public void activeUser(String keycloakId) {
+        final String uri = "/admin/realms/" + props.getRealm() + "/users/" + keycloakId;
+        String token = getAccessToken();
+
+        Map<String, Object> body = Map.of("enabled", true);
+
+        try {
+            keycloakRestClient.put()
+                    .uri(uri)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .headers(h -> h.setBearerAuth(token))
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("Keycloak user activated keycloakId={}", keycloakId);
+        } catch (RestClientResponseException ex) {
+            String responseBody = ex.getResponseBodyAsString();
+            throw new IllegalStateException(
+                    "Keycloak activate user failed: HTTP " + ex.getStatusCode().value()
+                            + (responseBody.isBlank() ? "" : "\n" + responseBody), ex);
+        }
     }
 }
