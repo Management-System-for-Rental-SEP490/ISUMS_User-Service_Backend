@@ -9,11 +9,13 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface UserService {
 
-    public List<UserDto> getAllUsers();
-    public String createUser(KeycloakCreateUserRequest req);
-    public UserDto getUserByEmail(String email);
+    List<UserDto> getAllUsers();
+    String createUser(KeycloakCreateUserRequest req);
+    UserDto getUserByEmail(String email);
     UserProfileDto getMe(String keycloakId);
+    void activeUser(UUID userId);
 }
