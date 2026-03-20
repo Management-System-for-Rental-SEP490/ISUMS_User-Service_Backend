@@ -49,7 +49,7 @@ public class EContractEventListener {
         userService.activeUser(event.userId());
 
         kafkaTemplate.send("notification-email", SendEmailEvent.builder()
-                .to(event.name())
+                .to(event.email())
                 .templateCode("USER_ACTIVATED")
                 .params(Map.of(
                         "name", event.name(),
