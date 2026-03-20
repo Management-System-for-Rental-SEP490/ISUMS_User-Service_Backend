@@ -35,6 +35,7 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
 
             UserResponse response = UserResponse.newBuilder()
                     .setId(user.getId().toString())
+                    .setKeycloakId(user.getKeycloakId())
                     .setName(user.getName())
                     .setEmail(user.getEmail())
                     .setIdentityNumber(user.getIdentityNumber())
@@ -77,6 +78,7 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
 
             UserResponse response = UserResponse.newBuilder()
                     .setId(user.getId().toString())
+                    .setKeycloakId(user.getKeycloakId())
                     .setName(user.getName())
                     .setEmail(user.getEmail())
                     .setIdentityNumber(user.getIdentityNumber())
