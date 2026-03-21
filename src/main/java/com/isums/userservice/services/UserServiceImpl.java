@@ -3,6 +3,7 @@ package com.isums.userservice.services;
 import com.isums.userservice.domains.dtos.*;
 import com.isums.userservice.domains.entities.Role;
 import com.isums.userservice.domains.entities.UserRole;
+import com.isums.userservice.domains.entities.UserRoleId;
 import com.isums.userservice.exceptions.NotFoundException;
 import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.entities.User;
@@ -75,7 +76,10 @@ public class UserServiceImpl implements UserService {
         Role role = roleRepository.findByCode(Roles.TENANT)
                 .orElseThrow(() -> new NotFoundException("Tenant role not found"));
 
+        UserRoleId userRoleId = new UserRoleId(user.getId(), role.getId());
+
         UserRole userRole = UserRole.builder()
+                .id(userRoleId)
                 .user(user)
                 .role(role)
                 .createdAt(Instant.now())
@@ -94,7 +98,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByEmail(email);
 
         if (user == null) {
-            throw new IllegalStateException("User not found");
+            throw new NotFoundException("User not found");
         }
         return userMapper.mapUser(user);
     }
