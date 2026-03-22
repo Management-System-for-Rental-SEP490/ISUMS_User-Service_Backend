@@ -3,7 +3,7 @@ FROM amazoncorretto:25-al2023-headless
 WORKDIR /app
 
 ARG XMX=640m
-ENV JAVA_OPTS="-Xms512m -Xmx${XMX} -XX:+UseContainerSupport"
+ENV JAVA_OPTS="-Xms256m -Xmx${XMX} -XX:+UseContainerSupport"
 
 COPY build/libs/*.jar app.jar
 
