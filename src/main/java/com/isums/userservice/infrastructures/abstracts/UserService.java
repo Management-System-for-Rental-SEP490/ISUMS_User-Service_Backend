@@ -7,10 +7,12 @@ import com.isums.userservice.domains.entities.User;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface UserService {
 
     public List<UserDto> getAllUsers();
     public String createUser(KeycloakCreateUserRequest req);
     public UserDto ensureUserExistsFromToken(Jwt jwt);
+    void activeUser(UUID userId);
 }

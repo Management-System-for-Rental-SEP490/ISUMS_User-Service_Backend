@@ -24,7 +24,8 @@ public class EContractEventListener {
                 false,
                 event.getPhoneNumber(),
                 event.getIdentityNumber(),
-                Map.of("roles", List.of("USER"))
+                Map.of("roles", List.of("USER")),
+                List.of("UPDATE_PASSWORD")
         );
         userService.createUser(request);
     }
