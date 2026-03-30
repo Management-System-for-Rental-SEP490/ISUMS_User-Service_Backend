@@ -1,15 +1,17 @@
 package com.isums.userservice.controllers;
 
+import com.isums.userservice.domains.dtos.*;
+import com.isums.userservice.infrastructures.abstracts.UserRoleService;
 import com.isums.userservice.infrastructures.abstracts.UserService;
-import com.isums.userservice.domains.dtos.ApiResponse;
-import com.isums.userservice.domains.dtos.ApiResponses;
-import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
-import com.isums.userservice.domains.dtos.UserDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/users")
@@ -17,16 +19,50 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final UserRoleService userRoleService;
 
     @GetMapping
     public ApiResponse<List<UserDto>> getAllUsers() {
         List<UserDto> res = userService.getAllUsers();
-        return ApiResponses.ok(res,"success to get all users");
+        return ApiResponses.ok(res, "success to get all users");
     }
 
     @PostMapping
     public ApiResponse<String> createUser(@RequestBody KeycloakCreateUserRequest req) {
         String res = userService.createUser(req);
         return ApiResponses.created(res, "success to create user");
+    }
+
+    @GetMapping("/{email}")
+    public ApiResponse<UserDto> getUserByEmail(@PathVariable String email) {
+        UserDto res = userService.getUserByEmail(email);
+        return ApiResponses.ok(res, "success to get user by email");
+    }
+
+    @PostMapping("/{keycloakId}/roles/{roleId}")
+    @PreAuthorize("hasRole('LANDLORD')")
+    public ApiResponse<Void> assignRole(@PathVariable String keycloakId, @PathVariable UUID roleId) {
+        userRoleService.assignRole(keycloakId, roleId);
+        return ApiResponses.ok(null, "Role assigned successfully");
+    }
+
+    @DeleteMapping("/{keycloakId}/roles/{roleId}")
+    @PreAuthorize("hasRole('LANDLORD')")
+    public ApiResponse<Void> revokeRole(@PathVariable String keycloakId, @PathVariable UUID roleId) {
+        userRoleService.revokeRole(keycloakId, roleId);
+        return ApiResponses.ok(null, "Role revoked successfully");
+    }
+
+    @GetMapping("/roles")
+    @PreAuthorize("hasRole('LANDLORD')")
+    public ApiResponse<List<RoleDto>> getAllRoles() {
+        List<RoleDto> res = userRoleService.getAllRoles();
+        return ApiResponses.ok(res, "success to get all roles");
+    }
+
+    @GetMapping("/me")
+    public ApiResponse<UserProfileDto> getMe(@AuthenticationPrincipal Jwt jwt) {
+        UserProfileDto res = userService.getMe(jwt.getSubject());
+        return ApiResponses.ok(res, "success");
     }
 }

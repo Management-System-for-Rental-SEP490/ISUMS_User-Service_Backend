@@ -44,7 +44,7 @@ public class User implements Serializable {
     private String identityNumber;
 
     @Column(name = "is_enabled", nullable = false)
-    private boolean isEnabled;
+    private Boolean isEnabled;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -53,14 +53,5 @@ public class User implements Serializable {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private java.time.Instant updatedAt;
-
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
-
-    private Set<Role> roles = new HashSet<>();
 }
 

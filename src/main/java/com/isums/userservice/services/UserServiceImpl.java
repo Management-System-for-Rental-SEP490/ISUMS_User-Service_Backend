@@ -1,13 +1,19 @@
 package com.isums.userservice.services;
 
 import com.isums.userservice.domains.dtos.*;
+import com.isums.userservice.domains.entities.Role;
+import com.isums.userservice.domains.entities.UserRole;
+import com.isums.userservice.domains.entities.UserRoleId;
+import com.isums.userservice.exceptions.NotFoundException;
 import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.entities.User;
 import com.isums.userservice.infrastructures.mapper.UserMapper;
 import com.isums.userservice.exceptions.ConflictException;
 import com.isums.userservice.infrastructures.client.KeycloakClientImpl;
+import com.isums.userservice.infrastructures.repositories.RoleRepository;
 import com.isums.userservice.infrastructures.repositories.UserRepository;
-import jakarta.ws.rs.NotFoundException;
+import com.isums.userservice.infrastructures.repositories.UserRoleRepository;
+import common.statics.Roles;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -28,6 +34,9 @@ public class UserServiceImpl implements UserService {
     private final KeycloakClientImpl keycloakClient;
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final UserRoleCacheServiceImpl userRoleCacheServiceImpl;
+    private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -59,12 +68,28 @@ public class UserServiceImpl implements UserService {
                 .email(req.email())
                 .name(req.name())
                 .identityNumber(req.identityNumber())
+                .phoneNumber(req.phoneNumber())
                 .isEnabled(req.isEnabled())
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
 
+        Role role = roleRepository.findByCode(Roles.TENANT)
+                .orElseThrow(() -> new NotFoundException("Tenant role not found"));
+
+        UserRoleId userRoleId = new UserRoleId(user.getId(), role.getId());
+
+        UserRole userRole = UserRole.builder()
+                .id(userRoleId)
+                .user(user)
+                .role(role)
+                .createdAt(Instant.now())
+                .build();
+
         userRepository.save(user);
+        log.info("User created: {}", user);
+        userRoleRepository.save(userRole);
+        log.info("User role created: {}", userRole);
         return keycloakUserId;
     }
 
@@ -74,14 +99,14 @@ public class UserServiceImpl implements UserService {
 
         User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("User not found: " + userId));
 
-        if (user.isEnabled()) {
+        if (user.getIsEnabled()) {
             log.info("User already enabled userId={}, skip", userId);
             return;
         }
 
-        keycloakClient.activeUser(user.getKeycloakId().toString());
+        keycloakClient.activeUser(user.getKeycloakId());
 
-        user.setEnabled(true);
+        user.setIsEnabled(true);
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
 
@@ -89,7 +114,30 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDto ensureUserExistsFromToken(Jwt jwt) {
-        return null;
+    @Cacheable(value = "userByEmail", key = "#email")
+    public UserDto getUserByEmail(String email) {
+        User user = userRepository.findByEmail(email);
+
+        if (user == null) {
+            throw new NotFoundException("User not found");
+        }
+        return userMapper.mapUser(user);
+    }
+
+    @Override
+    public UserProfileDto getMe(String keycloakId) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        List<String> roles = userRoleCacheServiceImpl.getRolesCached(keycloakId);
+
+        return UserProfileDto.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .identityNumber(user.getIdentityNumber())
+                .phoneNumber(user.getPhoneNumber())
+                .roles(roles)
+                .build();
     }
 }

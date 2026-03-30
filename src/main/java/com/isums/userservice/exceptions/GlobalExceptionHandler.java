@@ -7,10 +7,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.RestClientResponseException;
 
+import javax.naming.AuthenticationException;
 import java.util.List;
 
 
@@ -33,6 +36,20 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(res.getStatusCode()).body(res);
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotFoundException(NotFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponses.fail(HttpStatus.NOT_FOUND, ex.getMessage()));
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(IllegalStateException ex) {
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponses.fail(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -88,10 +105,30 @@ public class GlobalExceptionHandler {
                 "Unexpected error",
                 List.of(ApiError.builder()
                         .code("INTERNAL_ERROR")
-                        .message("An unexpected error occurred") // không leak message thật
+                        .message("An unexpected error occurred")
                         .build())
         );
 
         return ResponseEntity.status(res.getStatusCode()).body(res);
+    }
+
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleAccessDenied(AuthorizationDeniedException ex) {
+        return ApiResponse.<Void>builder()
+                .success(false)
+                .statusCode(403)
+                .message("Access Denied")
+                .build();
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ApiResponse<Void> handleUnauthorized(AuthenticationException ex) {
+        return ApiResponse.<Void>builder()
+                .success(false)
+                .statusCode(401)
+                .message("Unauthorized")
+                .build();
     }
 }

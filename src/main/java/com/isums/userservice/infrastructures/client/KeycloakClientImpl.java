@@ -18,10 +18,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Component
@@ -87,7 +84,7 @@ public class KeycloakClientImpl implements KeycloakClient {
     public String createUser(KeycloakCreateUserRequest req) {
         Objects.requireNonNull(req, "KeycloakCreateUserRequest cannot be null");
 
-        final String uri = "/admin/realms/" + props.getRealm() +"/users";
+        final String uri = "/admin/realms/" + props.getRealm() + "/users";
         String token = getAccessToken();
 
         KeycloakUserRepresentation payload = new KeycloakUserRepresentation(
@@ -131,7 +128,7 @@ public class KeycloakClientImpl implements KeycloakClient {
         }
     }
 
-    public String activeUser(String keycloakId) {
+    public void activeUser(String keycloakId) {
         final String uri = "/admin/realms/" + props.getRealm() + "/users/" + keycloakId;
         String token = getAccessToken();
 
@@ -153,7 +150,6 @@ public class KeycloakClientImpl implements KeycloakClient {
                     "Keycloak activate user failed: HTTP " + ex.getStatusCode().value()
                             + (responseBody.isBlank() ? "" : "\n" + responseBody), ex);
         }
-        return uri;
     }
 
     private static Map<String, List<String>> mergeAttributes(
@@ -166,9 +162,38 @@ public class KeycloakClientImpl implements KeycloakClient {
 
         if (identityNumber != null && !identityNumber.isBlank()) {
             merged.put("identityNumber", List.of(identityNumber));
-            merged.put("name",  List.of(name));
+            merged.put("name", List.of(name));
         }
 
         return merged.isEmpty() ? null : merged;
+    }
+
+    public String resetPassword(String keycloakId) {
+        String tempPassword = UUID.randomUUID().toString().substring(0, 8) + "@Aa1";
+        final String uri = "/admin/realms/" + props.getRealm()
+                + "/users/" + keycloakId + "/reset-password";
+        String token = getAccessToken();
+
+        Map<String, Object> body = Map.of(
+                "type", "password",
+                "value", tempPassword,
+                "temporary", true
+        );
+
+        try {
+            keycloakRestClient.put()
+                    .uri(uri)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .headers(h -> h.setBearerAuth(token))
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("Keycloak password reset keycloakId={}", keycloakId);
+            return tempPassword;
+        } catch (RestClientResponseException ex) {
+            throw new IllegalStateException("Reset password failed: HTTP "
+                    + ex.getStatusCode().value(), ex);
+        }
     }
 }

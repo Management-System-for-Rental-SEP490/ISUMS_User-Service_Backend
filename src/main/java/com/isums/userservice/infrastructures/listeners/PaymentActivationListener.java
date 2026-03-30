@@ -40,7 +40,7 @@ public class PaymentActivationListener {
             userService.activeUser(event.tenantId());
 
             User user = userRepository.findById(event.tenantId()).orElseThrow();
-            String tempPassword = keycloakAdminService.activeUser(user.getKeycloakId());
+            String tempPassword = keycloakAdminService.resetPassword(user.getKeycloakId());
 
             kafka.send("user-activated-topic", UserActivatedEvent.builder()
                     .userId(event.tenantId())

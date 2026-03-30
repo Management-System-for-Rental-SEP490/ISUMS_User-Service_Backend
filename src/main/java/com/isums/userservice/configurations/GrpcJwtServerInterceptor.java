@@ -2,6 +2,7 @@ package com.isums.userservice.configurations;
 
 import io.grpc.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class GrpcJwtServerInterceptor implements ServerInterceptor {
 
     private static final Metadata.Key<String> AUTHORIZATION =
@@ -26,8 +28,8 @@ public class GrpcJwtServerInterceptor implements ServerInterceptor {
 
         String auth = headers.get(AUTHORIZATION);
         if (auth == null || !auth.startsWith("Bearer ")) {
-            call.close(Status.UNAUTHENTICATED.withDescription("Missing Bearer token"), new Metadata());
-            return new ServerCall.Listener<>() {};
+            log.info("No token in gRPC call — passing through");
+            return next.startCall(call, headers);
         }
 
         String tokenValue = auth.substring("Bearer ".length()).trim();
