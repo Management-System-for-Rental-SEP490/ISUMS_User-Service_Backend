@@ -10,4 +10,5 @@ public record UserActivatedEvent(
         String email,
         String name,
         String tempPassword
-) {}
+) {
+}

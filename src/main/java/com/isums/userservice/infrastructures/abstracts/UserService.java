@@ -14,8 +14,12 @@ import java.util.UUID;
 public interface UserService {
 
     List<UserDto> getAllUsers();
+
     String createUser(KeycloakCreateUserRequest req);
+
     UserDto getUserByEmail(String email);
+
     UserProfileDto getMe(String keycloakId);
+
     void activeUser(UUID userId);
 }
