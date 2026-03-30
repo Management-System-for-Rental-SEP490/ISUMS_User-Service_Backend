@@ -94,7 +94,8 @@ public class KeycloakClientImpl implements KeycloakClient {
                 req.email(),
                 req.isEnabled(),
                 req.emailVerified() != null ? req.emailVerified() : true,
-                mergeAttributes(req.attributes(), req.identityNumber(), req.name())
+                mergeAttributes(req.attributes(), req.identityNumber(), req.name()),
+                List.of("UPDATE_PASSWORD")
         );
 
         try {
