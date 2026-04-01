@@ -4,5 +4,10 @@ import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
 
 public interface KeycloakClient {
     String createUser(KeycloakCreateUserRequest req);
+
+    String resetPassword(String keycloakId);
+
     void activeUser(String keycloakId);
+
+    String activateAndResetPassword(String keycloakId);
 }

@@ -11,6 +11,7 @@ public record UserProfileDto(
         String name,
         String email,
         String identityNumber,
+        UUID mainHouseId,
         String phoneNumber,
         List<String> roles
 ) {}

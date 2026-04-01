@@ -9,8 +9,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.io.Serializable;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -45,6 +43,9 @@ public class User implements Serializable {
 
     @Column(name = "is_enabled", nullable = false)
     private Boolean isEnabled;
+
+    @Column(name = "main_house_id")
+    private UUID mainHouseId;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

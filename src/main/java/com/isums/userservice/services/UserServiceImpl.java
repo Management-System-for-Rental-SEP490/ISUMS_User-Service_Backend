@@ -4,9 +4,12 @@ import com.isums.userservice.domains.dtos.*;
 import com.isums.userservice.domains.entities.Role;
 import com.isums.userservice.domains.entities.UserRole;
 import com.isums.userservice.domains.entities.UserRoleId;
+import com.isums.userservice.domains.events.DepositPaidEvent;
+import com.isums.userservice.domains.events.UserActivatedEvent;
 import com.isums.userservice.exceptions.NotFoundException;
 import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.entities.User;
+import com.isums.userservice.infrastructures.grpc.HouseGrpcClient;
 import com.isums.userservice.infrastructures.mapper.UserMapper;
 import com.isums.userservice.exceptions.ConflictException;
 import com.isums.userservice.infrastructures.client.KeycloakClientImpl;
@@ -18,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +40,8 @@ public class UserServiceImpl implements UserService {
     private final UserRoleCacheServiceImpl userRoleCacheServiceImpl;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
+    private final HouseGrpcClient houseGrpcClient;
+    private final KafkaTemplate<String, Object> kafka;
 
     @Override
     @Transactional(readOnly = true)
@@ -93,6 +99,66 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public void activeUser(UUID userId) {
+
+        User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("User not found: " + userId));
+
+        if (user.getIsEnabled()) {
+            log.info("User already enabled userId={}, skip", userId);
+            return;
+        }
+
+        keycloakClient.activeUser(user.getKeycloakId());
+
+        user.setIsEnabled(true);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+
+        log.info("User activated userId={}", userId);
+    }
+
+    @Override
+    public void updateMainHouse(String keycloakId, UUID houseId) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        user.setMainHouseId(houseId);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public void activateIfNewUser(DepositPaidEvent event) {
+        User user = userRepository.findById(event.tenantId())
+                .orElseThrow(() -> new NotFoundException("User not found: " + event.tenantId()));
+
+        if (user.getIsEnabled()) {
+            log.info("[Activation] User already enabled userId={}, skip", event.tenantId());
+            return;
+        }
+
+        String tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
+
+        user.setIsEnabled(true);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+
+        kafka.send("user-activated-topic", UserActivatedEvent.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .name(user.getName())
+                .tempPassword(tempPassword)
+                .firstRentPaymentUrl(event.firstRentPaymentUrl())
+                .firstRentAmount(event.firstRentAmount())
+                .firstRentDueDate(event.firstRentDueDate())
+                .build());
+
+        log.info("[Activation] User activated userId={}", user.getId());
+    }
+
+    @Override
     @Cacheable(value = "userByEmail", key = "#email")
     public UserDto getUserByEmail(String email) {
         User user = userRepository.findByEmail(email);
@@ -110,22 +176,21 @@ public class UserServiceImpl implements UserService {
 
         List<String> roles = userRoleCacheServiceImpl.getRolesCached(keycloakId);
 
+        if (user.getMainHouseId() == null) {
+            var houses = houseGrpcClient.getAllHouseByUser(user.getId());
+            if (houses.size() == 1) {
+                user.setMainHouseId(UUID.fromString(houses.getFirst().getId()));
+            }
+        }
+
         return UserProfileDto.builder()
                 .id(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
                 .identityNumber(user.getIdentityNumber())
+                .mainHouseId(user.getMainHouseId())
                 .phoneNumber(user.getPhoneNumber())
                 .roles(roles)
                 .build();
-    }
-
-    @Override
-    public void activeUser(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
-
-        user.setIsEnabled(true);
-        keycloakClient.activeUser(user.getKeycloakId());
     }
 }

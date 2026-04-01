@@ -14,5 +14,6 @@ public record KeycloakUserRepresentation(
         String email,
         Boolean enabled,
         Boolean emailVerified,
-        Map<String, List<String>> attributes
+        Map<String, List<String>> attributes,
+        List<String> requiredActions
 ) {}
