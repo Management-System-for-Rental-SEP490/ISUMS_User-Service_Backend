@@ -3,6 +3,7 @@ package com.isums.userservice.infrastructures.grpc;
 import com.isums.userservice.domains.entities.Role;
 import com.isums.userservice.domains.entities.User;
 import com.isums.userservice.grpc.*;
+import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.infrastructures.repositories.UserRepository;
 import com.isums.userservice.services.UserRoleCacheServiceImpl;
 import io.grpc.Status;
@@ -22,6 +23,7 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
 
     private final UserRepository userRepository;
     private final UserRoleCacheServiceImpl userRoleCacheServiceImpl;
+    private final UserService userService;
 
     @Override
     public void getUserById(GetUserByIdRequest request, StreamObserver<UserResponse> responseObserver) {
@@ -37,6 +39,7 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
                     .setId(user.getId().toString())
                     .setKeycloakId(user.getKeycloakId())
                     .setName(user.getName())
+                    .setPhoneNumber(user.getPhoneNumber())
                     .setEmail(user.getEmail())
                     .setIdentityNumber(user.getIdentityNumber())
                     .setIsEnabled(user.getIsEnabled())
@@ -107,6 +110,33 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
 
             responseObserver.onNext(response);
             responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("getUserRoles failed, keycloakId={}", request.getKeycloakId(), e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Internal error: " + e.getClass().getSimpleName())
+                    .withCause(e)
+                    .asRuntimeException());
+        }
+    }
+    @Override
+    public void getUserIdAndRoleByKeyCloakId(GetUserIdAndRoleByKeyCloakIdRequest request, StreamObserver<UserResponse> responseObserver){
+        try{
+            String keycloakId = request.getKeycloakId();
+            var profile = userService.getMe(keycloakId);
+
+            UserResponse response = UserResponse.newBuilder()
+                    .setId(profile.id().toString())
+                    .setName(profile.name())
+                    .setEmail(profile.email())
+                    .setPhoneNumber(profile.phoneNumber())
+                    .setIdentityNumber(profile.identityNumber())
+                    .setKeycloakId(keycloakId)
+                    .addAllRoles(profile.roles())
+                    .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+
         } catch (Exception e) {
             log.error("getUserRoles failed, keycloakId={}", request.getKeycloakId(), e);
             responseObserver.onError(Status.INTERNAL
