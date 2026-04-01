@@ -4,6 +4,8 @@ import com.isums.userservice.domains.dtos.*;
 import com.isums.userservice.domains.entities.Role;
 import com.isums.userservice.domains.entities.UserRole;
 import com.isums.userservice.domains.entities.UserRoleId;
+import com.isums.userservice.domains.events.DepositPaidEvent;
+import com.isums.userservice.domains.events.UserActivatedEvent;
 import com.isums.userservice.exceptions.NotFoundException;
 import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.entities.User;
@@ -19,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +41,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final HouseGrpcClient houseGrpcClient;
+    private final KafkaTemplate<String, Object> kafka;
 
     @Override
     @Transactional(readOnly = true)
@@ -122,6 +126,36 @@ public class UserServiceImpl implements UserService {
         user.setMainHouseId(houseId);
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public void activateIfNewUser(DepositPaidEvent event) {
+        User user = userRepository.findById(event.tenantId())
+                .orElseThrow(() -> new NotFoundException("User not found: " + event.tenantId()));
+
+        if (user.getIsEnabled()) {
+            log.info("[Activation] User already enabled userId={}, skip", event.tenantId());
+            return;
+        }
+
+        String tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
+
+        user.setIsEnabled(true);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+
+        kafka.send("user-activated-topic", UserActivatedEvent.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .name(user.getName())
+                .tempPassword(tempPassword)
+                .firstRentPaymentUrl(event.firstRentPaymentUrl())
+                .firstRentAmount(event.firstRentAmount())
+                .firstRentDueDate(event.firstRentDueDate())
+                .build());
+
+        log.info("[Activation] User activated userId={}", user.getId());
     }
 
     @Override

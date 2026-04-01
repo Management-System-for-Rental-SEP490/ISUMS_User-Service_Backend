@@ -65,4 +65,11 @@ public class UserController {
         UserProfileDto res = userService.getMe(jwt.getSubject());
         return ApiResponses.ok(res, "success");
     }
+
+    @PutMapping("/main-house")
+    public ApiResponse<Void> updateMainHouse(@RequestBody UpdateMainHouseRequest req, @AuthenticationPrincipal Jwt jwt) {
+        String keycloakId = jwt.getSubject();
+        userService.updateMainHouse(keycloakId, req.houseId());
+        return ApiResponses.ok(null, "success to update main house");
+    }
 }

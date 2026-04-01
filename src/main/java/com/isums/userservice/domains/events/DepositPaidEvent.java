@@ -14,6 +14,14 @@ public record DepositPaidEvent(
         Long amount,
         String invoiceType,
         String txnNo,
-        Instant paidAt
+        Instant paidAt,
+        Long rentAmount,
+        Integer payDate,
+        Instant startAt,
+        String tenantEmail,
+        Boolean isNewAccount,
+        String firstRentPaymentUrl,
+        Long firstRentAmount,
+        Instant firstRentDueDate
 ) {
 }
