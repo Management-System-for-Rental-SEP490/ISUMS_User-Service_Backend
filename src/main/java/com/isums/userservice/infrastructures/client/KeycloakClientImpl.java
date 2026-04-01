@@ -152,6 +152,12 @@ public class KeycloakClientImpl implements KeycloakClient {
         }
     }
 
+    @Override
+    public String activateAndResetPassword(String keycloakId) {
+        activeUser(keycloakId);
+        return resetPassword(keycloakId);
+    }
+
     private static Map<String, List<String>> mergeAttributes(
             Map<String, List<String>> attrs,
             String identityNumber,

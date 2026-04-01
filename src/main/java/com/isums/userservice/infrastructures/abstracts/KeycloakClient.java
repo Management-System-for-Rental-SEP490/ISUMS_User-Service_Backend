@@ -8,4 +8,6 @@ public interface KeycloakClient {
     String resetPassword(String keycloakId);
 
     void activeUser(String keycloakId);
+
+    String activateAndResetPassword(String keycloakId);
 }
