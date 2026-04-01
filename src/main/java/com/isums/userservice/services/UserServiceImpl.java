@@ -7,6 +7,7 @@ import com.isums.userservice.domains.entities.UserRoleId;
 import com.isums.userservice.exceptions.NotFoundException;
 import com.isums.userservice.infrastructures.abstracts.UserService;
 import com.isums.userservice.domains.entities.User;
+import com.isums.userservice.infrastructures.grpc.HouseGrpcClient;
 import com.isums.userservice.infrastructures.mapper.UserMapper;
 import com.isums.userservice.exceptions.ConflictException;
 import com.isums.userservice.infrastructures.client.KeycloakClientImpl;
@@ -18,7 +19,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +37,7 @@ public class UserServiceImpl implements UserService {
     private final UserRoleCacheServiceImpl userRoleCacheServiceImpl;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
+    private final HouseGrpcClient houseGrpcClient;
 
     @Override
     @Transactional(readOnly = true)
@@ -114,6 +115,16 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public void updateMainHouse(String keycloakId, UUID houseId) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        user.setMainHouseId(houseId);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+    }
+
+    @Override
     @Cacheable(value = "userByEmail", key = "#email")
     public UserDto getUserByEmail(String email) {
         User user = userRepository.findByEmail(email);
@@ -131,11 +142,19 @@ public class UserServiceImpl implements UserService {
 
         List<String> roles = userRoleCacheServiceImpl.getRolesCached(keycloakId);
 
+        if (user.getMainHouseId() == null) {
+            var houses = houseGrpcClient.getAllHouseByUser(user.getId());
+            if (houses.size() == 1) {
+                user.setMainHouseId(UUID.fromString(houses.getFirst().getId()));
+            }
+        }
+
         return UserProfileDto.builder()
                 .id(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
                 .identityNumber(user.getIdentityNumber())
+                .mainHouseId(user.getMainHouseId())
                 .phoneNumber(user.getPhoneNumber())
                 .roles(roles)
                 .build();

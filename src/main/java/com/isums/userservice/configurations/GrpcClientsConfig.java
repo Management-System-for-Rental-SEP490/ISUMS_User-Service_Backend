@@ -1,6 +1,6 @@
 package com.isums.userservice.configurations;
 
-import com.isums.userservice.grpc.UserServiceGrpc;
+import com.isums.houseservice.grpc.HouseServiceGrpc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.grpc.client.GrpcChannelFactory;
@@ -9,7 +9,8 @@ import org.springframework.grpc.client.GrpcChannelFactory;
 public class GrpcClientsConfig {
 
     @Bean
-    UserServiceGrpc.UserServiceBlockingStub houseStub(GrpcChannelFactory channels) {
-        return UserServiceGrpc.newBlockingStub(channels.createChannel("user"));
+    HouseServiceGrpc.HouseServiceBlockingStub houseStub(GrpcChannelFactory channels, GrpcTokenInterceptor tokenInterceptor) {
+        return HouseServiceGrpc.newBlockingStub(channels.createChannel("house"))
+                .withInterceptors(tokenInterceptor);
     }
 }
