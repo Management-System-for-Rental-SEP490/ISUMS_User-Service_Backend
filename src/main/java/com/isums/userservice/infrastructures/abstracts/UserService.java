@@ -22,4 +22,6 @@ public interface UserService {
     UserProfileDto getMe(String keycloakId);
 
     void activeUser(UUID userId);
+
+    void updateMainHouse(String keycloakId, UUID houseId);
 }
