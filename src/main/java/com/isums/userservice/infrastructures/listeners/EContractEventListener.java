@@ -50,7 +50,7 @@ public class EContractEventListener {
         }
     }
 
-    @KafkaListener(topics = "deposit-paid-topic", groupId = "user-group")
+    @KafkaListener(topics = "deposit-paid-enriched-topic", groupId = "user-group")
     public void handleDepositPaid(ConsumerRecord<String, String> record, Acknowledgment ack) {
         try {
             DepositPaidEvent event = objectMapper.readValue(record.value(), DepositPaidEvent.class);
@@ -58,7 +58,7 @@ public class EContractEventListener {
             ack.acknowledge();
             log.info("[User] handleDepositPaid processed tenantId={}", event.tenantId());
         } catch (tools.jackson.core.JacksonException e) {
-            log.error("[User] Deserialize deposit-paid failed: {}", e.getMessage());
+            log.error("[User] Deserialize failed: {}", e.getMessage());
             ack.acknowledge();
         } catch (Exception e) {
             log.error("[User] handleDepositPaid failed, will retry: {}", e.getMessage(), e);
