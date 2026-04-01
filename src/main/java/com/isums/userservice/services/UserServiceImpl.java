@@ -134,28 +134,29 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(event.tenantId())
                 .orElseThrow(() -> new NotFoundException("User not found: " + event.tenantId()));
 
-        if (user.getIsEnabled()) {
-            log.info("[Activation] User already enabled userId={}, skip", event.tenantId());
-            return;
+        String tempPassword = null;
+
+        if (!user.getIsEnabled()) {
+            tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
+            user.setIsEnabled(true);
+            user.setUpdatedAt(Instant.now());
+            userRepository.save(user);
+            log.info("[Activation] User activated userId={}", user.getId());
+        } else {
+            log.info("[Activation] User already enabled userId={} — skipping activation but still sending mail", user.getId());
         }
 
-        String tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
-
-        user.setIsEnabled(true);
-        user.setUpdatedAt(Instant.now());
-        userRepository.save(user);
-
-        kafka.send("user-activated-topic", UserActivatedEvent.builder()
-                .userId(user.getId())
-                .email(user.getEmail())
-                .name(user.getName())
-                .tempPassword(tempPassword)
-                .firstRentPaymentUrl(event.firstRentPaymentUrl())
-                .firstRentAmount(event.firstRentAmount())
-                .firstRentDueDate(event.firstRentDueDate())
-                .build());
-
-        log.info("[Activation] User activated userId={}", user.getId());
+        if (event.firstRentPaymentUrl() != null) {
+            kafka.send("user-activated-topic", UserActivatedEvent.builder()
+                    .userId(user.getId())
+                    .email(user.getEmail())
+                    .name(user.getName())
+                    .tempPassword(tempPassword)
+                    .firstRentPaymentUrl(event.firstRentPaymentUrl())
+                    .firstRentAmount(event.firstRentAmount())
+                    .firstRentDueDate(event.firstRentDueDate())
+                    .build());
+        }
     }
 
     @Override
