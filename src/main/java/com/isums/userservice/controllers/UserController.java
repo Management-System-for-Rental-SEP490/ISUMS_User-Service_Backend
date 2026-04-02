@@ -3,6 +3,7 @@ package com.isums.userservice.controllers;
 import com.isums.userservice.domains.dtos.*;
 import com.isums.userservice.infrastructures.abstracts.UserRoleService;
 import com.isums.userservice.infrastructures.abstracts.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -71,5 +72,12 @@ public class UserController {
         String keycloakId = jwt.getSubject();
         userService.updateMainHouse(keycloakId, req.houseId());
         return ApiResponses.ok(null, "success to update main house");
+    }
+
+    @PostMapping("/technical-staff")
+    @PreAuthorize("hasRole('LANDLORD')")
+    public ApiResponse<UserDto> createTechnicalStaff(@RequestBody @Valid CreateTechnicalStaffRequest req) {
+        UserDto res = userService.createTechnicalStaff(req);
+        return ApiResponses.created(res, "Technical staff created successfully");
     }
 }
