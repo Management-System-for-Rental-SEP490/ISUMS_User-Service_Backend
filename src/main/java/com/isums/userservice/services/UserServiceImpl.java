@@ -232,6 +232,20 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public List<StaffDto> getAllStaff() {
+        List<User> users = userRepository.findUsersByRoleCode("TECHNICAL_STAFF");
+
+        return users.stream()
+                .map(u -> new StaffDto(
+                        u.getId(),
+                        u.getName(),
+                        u.getEmail(),
+                        u.getPhoneNumber()
+                ))
+                .toList();
+    }
+
+    @Override
     @Cacheable(value = "userByEmail", key = "#email")
     public UserDto getUserByEmail(String email) {
         User user = userRepository.findByEmail(email);

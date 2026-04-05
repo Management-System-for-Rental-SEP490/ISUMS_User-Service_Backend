@@ -138,7 +138,7 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
             responseObserver.onCompleted();
 
         } catch (Exception e) {
-            log.error("getUserRoles failed, keycloakId={}", request.getKeycloakId(), e);
+            log.error("getUserIdAndRoleByKeyCloakId failed, keycloakId={}", request.getKeycloakId(), e);
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Internal error: " + e.getClass().getSimpleName())
                     .withCause(e)

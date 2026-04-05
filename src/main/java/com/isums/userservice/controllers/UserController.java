@@ -80,4 +80,10 @@ public class UserController {
         UserDto res = userService.createTechnicalStaff(req);
         return ApiResponses.created(res, "Technical staff created successfully");
     }
+
+    @GetMapping("/staffs")
+    public ApiResponse<List<StaffDto>> getAllStaffs() {
+        List<StaffDto> res = userService.getAllStaff();
+        return ApiResponses.ok(res, "Get staffs successfully");
+    }
 }
