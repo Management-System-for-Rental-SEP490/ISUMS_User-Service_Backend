@@ -86,4 +86,10 @@ public class UserController {
         List<StaffDto> res = userService.getAllStaff();
         return ApiResponses.ok(res, "Get staffs successfully");
     }
+
+    @GetMapping("/byId/{userId}")
+    public ApiResponse<UserDto> getUserById(@PathVariable UUID userId) {
+        UserDto res = userService.getUserById(userId);
+        return ApiResponses.ok(res, "Get user successfully");
+    }
 }

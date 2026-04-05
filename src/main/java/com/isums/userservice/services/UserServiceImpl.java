@@ -246,6 +246,13 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserDto getUserById(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return userMapper.mapUser(user);
+    }
+
+    @Override
     @Cacheable(value = "userByEmail", key = "#email")
     public UserDto getUserByEmail(String email) {
         User user = userRepository.findByEmail(email);
