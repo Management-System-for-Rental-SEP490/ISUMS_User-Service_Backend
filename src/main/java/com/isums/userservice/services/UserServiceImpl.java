@@ -246,10 +246,23 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDto getUserById(UUID userId) {
+    public UserProfileDto getUserById(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        return userMapper.mapUser(user);
+
+        String keycloakId = user.getKeycloakId();
+
+        List<String> roles = userRoleCacheServiceImpl.getRolesCached(keycloakId);
+
+        return UserProfileDto.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .identityNumber(user.getIdentityNumber())
+                .mainHouseId(user.getMainHouseId())
+                .phoneNumber(user.getPhoneNumber())
+                .roles(roles)
+                .build();
     }
 
     @Override

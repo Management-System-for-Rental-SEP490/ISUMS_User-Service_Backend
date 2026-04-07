@@ -88,8 +88,8 @@ public class UserController {
     }
 
     @GetMapping("/byId/{userId}")
-    public ApiResponse<UserDto> getUserById(@PathVariable UUID userId) {
-        UserDto res = userService.getUserById(userId);
+    public ApiResponse<UserProfileDto> getUserById(@PathVariable UUID userId) {
+        UserProfileDto res = userService.getUserById(userId);
         return ApiResponses.ok(res, "Get user successfully");
     }
 }
