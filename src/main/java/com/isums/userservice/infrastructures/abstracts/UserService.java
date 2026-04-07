@@ -26,5 +26,5 @@ public interface UserService {
 
     List<StaffDto> getAllStaff();
 
-    UserDto getUserById(UUID userId);
+    UserProfileDto getUserById(UUID userId);
 }
