@@ -5,6 +5,7 @@ import com.isums.userservice.domains.entities.Role;
 import com.isums.userservice.domains.entities.UserRole;
 import com.isums.userservice.domains.entities.UserRoleId;
 import com.isums.userservice.domains.events.DepositPaidEvent;
+import com.isums.userservice.domains.events.SendEmailEvent;
 import com.isums.userservice.domains.events.UserActivatedEvent;
 import com.isums.userservice.exceptions.NotFoundException;
 import com.isums.userservice.infrastructures.abstracts.UserService;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -134,28 +136,133 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(event.tenantId())
                 .orElseThrow(() -> new NotFoundException("User not found: " + event.tenantId()));
 
-        if (user.getIsEnabled()) {
-            log.info("[Activation] User already enabled userId={}, skip", event.tenantId());
-            return;
+        String tempPassword = null;
+
+        if (!user.getIsEnabled()) {
+            tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
+            user.setIsEnabled(true);
+            user.setUpdatedAt(Instant.now());
+            userRepository.save(user);
+            log.info("[Activation] User activated userId={}", user.getId());
+        } else {
+            log.info("[Activation] User already enabled userId={} — skipping activation but still sending mail", user.getId());
         }
 
-        String tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
+        if (event.firstRentPaymentUrl() != null) {
+            kafka.send("user-activated-topic", UserActivatedEvent.builder()
+                    .userId(user.getId())
+                    .email(user.getEmail())
+                    .name(user.getName())
+                    .tempPassword(tempPassword)
+                    .firstRentPaymentUrl(event.firstRentPaymentUrl())
+                    .firstRentAmount(event.firstRentAmount())
+                    .firstRentDueDate(event.firstRentDueDate())
+                    .build());
+        }
+    }
 
-        user.setIsEnabled(true);
-        user.setUpdatedAt(Instant.now());
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = "allUsers", allEntries = true)
+    public UserDto createTechnicalStaff(CreateTechnicalStaffRequest req) {
+        if (userRepository.existsByEmail(req.email())) {
+            throw new ConflictException("Email " + req.email() + " already exists");
+        }
+
+        UUID internalId = UUID.randomUUID();
+
+        // Tạo Keycloak user với enabled=true, tempPassword ngay
+        KeycloakCreateUserRequest keycloakReq = new KeycloakCreateUserRequest(
+                internalId,
+                req.email(),
+                true,
+                true,
+                req.identityNumber(),
+                req.phoneNumber(),
+                req.name(),
+                Map.of("roles", List.of(Roles.TECHNICAL_STAFF)),
+                List.of("UPDATE_PASSWORD")
+        );
+
+        String keycloakId = keycloakClient.createUser(keycloakReq);
+        if (keycloakId == null || keycloakId.isBlank()) {
+            throw new IllegalStateException("Keycloak did not return user id");
+        }
+
+        String tempPassword = keycloakClient.resetPassword(keycloakId);
+
+        User user = User.builder()
+                .id(internalId)
+                .keycloakId(keycloakId)
+                .email(req.email())
+                .name(req.name())
+                .identityNumber(req.identityNumber() != null ? req.identityNumber() : "")
+                .phoneNumber(req.phoneNumber())
+                .isEnabled(true)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
         userRepository.save(user);
 
-        kafka.send("user-activated-topic", UserActivatedEvent.builder()
-                .userId(user.getId())
-                .email(user.getEmail())
-                .name(user.getName())
-                .tempPassword(tempPassword)
-                .firstRentPaymentUrl(event.firstRentPaymentUrl())
-                .firstRentAmount(event.firstRentAmount())
-                .firstRentDueDate(event.firstRentDueDate())
+        Role role = roleRepository.findByCode(Roles.TECHNICAL_STAFF)
+                .orElseThrow(() -> new NotFoundException("TECHNICAL_STAFF role not found"));
+
+        userRoleRepository.save(UserRole.builder()
+                .id(new UserRoleId(internalId, role.getId()))
+                .user(user)
+                .role(role)
+                .createdAt(Instant.now())
                 .build());
 
-        log.info("[Activation] User activated userId={}", user.getId());
+        log.info("[TechnicalStaff] Created userId={} email={}", internalId, req.email());
+
+        kafka.send("notification-email", SendEmailEvent.builder()
+                .to(req.email())
+                .templateCode("user_activated")
+                .params(Map.of(
+                        "name", req.name(),
+                        "email", req.email(),
+                        "password", tempPassword,
+                        "hasInvoice", false
+                ))
+                .build());
+
+        return userMapper.mapUser(user);
+    }
+
+    @Override
+    public List<StaffDto> getAllStaff() {
+        List<User> users = userRepository.findUsersByRoleCode("TECHNICAL_STAFF");
+
+        return users.stream()
+                .map(u -> new StaffDto(
+                        u.getId(),
+                        u.getName(),
+                        u.getEmail(),
+                        u.getPhoneNumber()
+                ))
+                .toList();
+    }
+
+    @Override
+    public UserProfileDto getUserById(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String keycloakId = user.getKeycloakId();
+
+        List<String> roles = userRoleCacheServiceImpl.getRolesCached(keycloakId);
+
+        return UserProfileDto.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .identityNumber(user.getIdentityNumber())
+                .mainHouseId(user.getMainHouseId())
+                .phoneNumber(user.getPhoneNumber())
+                .roles(roles)
+                .build();
     }
 
     @Override

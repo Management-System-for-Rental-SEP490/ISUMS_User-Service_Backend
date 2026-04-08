@@ -13,4 +13,6 @@ public class UserDto {
     private String keycloakId;
     private String email;
     private String identityNumber;
+    private String phoneNumber;
+
 }
