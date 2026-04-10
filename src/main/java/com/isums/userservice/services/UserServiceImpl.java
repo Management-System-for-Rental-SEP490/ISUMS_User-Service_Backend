@@ -232,6 +232,73 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserDto createManger(CreateManagerRequest req) {
+        if (userRepository.existsByEmail(req.email())) {
+            throw new ConflictException("Email " + req.email() + " already exists");
+        }
+
+        UUID internalId = UUID.randomUUID();
+
+        KeycloakCreateUserRequest keycloakReq = new KeycloakCreateUserRequest(
+                internalId,
+                req.email(),
+                true,
+                true,
+                req.identityNumber(),
+                req.phoneNumber(),
+                req.name(),
+                Map.of("roles", List.of(Roles.MANAGER)),
+                List.of("UPDATE_PASSWORD")
+        );
+
+        String keycloakId = keycloakClient.createUser(keycloakReq);
+        if (keycloakId == null || keycloakId.isBlank()) {
+            throw new IllegalStateException("Keycloak did not return user id");
+        }
+
+        String tempPassword = keycloakClient.resetPassword(keycloakId);
+
+        User user = User.builder()
+                .id(internalId)
+                .keycloakId(keycloakId)
+                .email(req.email())
+                .name(req.name())
+                .identityNumber(req.identityNumber() != null ? req.identityNumber() : "")
+                .phoneNumber(req.phoneNumber())
+                .isEnabled(true)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        userRepository.save(user);
+
+        Role role = roleRepository.findByCode(Roles.MANAGER)
+                .orElseThrow(() -> new NotFoundException("MANAGER role not found"));
+
+        userRoleRepository.save(UserRole.builder()
+                .id(new UserRoleId(internalId, role.getId()))
+                .user(user)
+                .role(role)
+                .createdAt(Instant.now())
+                .build());
+
+        log.info("[Manager] Created userId={} email={}", internalId, req.email());
+
+        kafka.send("notification-email", SendEmailEvent.builder()
+                .to(req.email())
+                .templateCode("user_activated")
+                .params(Map.of(
+                        "name", req.name(),
+                        "email", req.email(),
+                        "password", tempPassword,
+                        "hasInvoice", false
+                ))
+                .build());
+
+        return userMapper.mapUser(user);
+    }
+
+    @Override
     public List<StaffDto> getAllStaff() {
         List<User> users = userRepository.findUsersByRoleCode("TECHNICAL_STAFF");
 

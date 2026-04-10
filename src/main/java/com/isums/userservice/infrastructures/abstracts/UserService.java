@@ -24,6 +24,8 @@ public interface UserService {
 
     UserDto createTechnicalStaff(CreateTechnicalStaffRequest req);
 
+    UserDto createManger(CreateManagerRequest req);
+
     List<StaffDto> getAllStaff();
 
     UserProfileDto getUserById(UUID userId);
