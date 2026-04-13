@@ -45,8 +45,8 @@ public class GlobalExceptionHandler {
                 .body(ApiResponses.fail(HttpStatus.NOT_FOUND, ex.getMessage()));
     }
 
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(IllegalStateException ex) {
+    @ExceptionHandler(java.lang.IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(java.lang.IllegalStateException ex) {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponses.fail(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage()));
