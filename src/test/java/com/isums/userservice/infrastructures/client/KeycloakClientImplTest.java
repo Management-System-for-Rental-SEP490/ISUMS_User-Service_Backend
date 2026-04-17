@@ -20,8 +20,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -74,6 +77,16 @@ class KeycloakClientImplTest {
             server.expect(requestTo("http://localhost:8080/admin/realms/isums/users"))
                     .andExpect(method(POST))
                     .andExpect(header("Authorization", "Bearer tkn-1"))
+                    .andExpect(content().json("""
+                            {
+                              "username": "bob@b.com",
+                              "email": "bob@b.com",
+                              "firstName": "Bob",
+                              "enabled": true,
+                              "emailVerified": true,
+                              "requiredActions": []
+                            }
+                            """, false))
                     .andRespond(withStatus(HttpStatus.CREATED).location(location));
 
             KeycloakCreateUserRequest req = new KeycloakCreateUserRequest(
@@ -136,6 +149,26 @@ class KeycloakClientImplTest {
             assertThatThrownBy(() -> client.createUser(req))
                     .isInstanceOf(java.lang.IllegalStateException.class)
                     .hasMessageContaining("Keycloak token request failed");
+        }
+
+        @Test
+        @DisplayName("sends null firstName when name is blank")
+        void blankNameOmitsFirstNameValue() {
+            String keycloakId = UUID.randomUUID().toString();
+            URI location = URI.create("http://localhost:8080/admin/realms/isums/users/" + keycloakId);
+
+            expectTokenCall();
+            server.expect(requestTo("http://localhost:8080/admin/realms/isums/users"))
+                    .andExpect(method(POST))
+                    .andExpect(content().string(not(containsString("\"firstName\""))))
+                    .andRespond(withStatus(HttpStatus.CREATED).location(location));
+
+            KeycloakCreateUserRequest req = new KeycloakCreateUserRequest(
+                    null, "bob@b.com", true, true, "ID", "0900", "   ",
+                    Map.of(), List.of());
+
+            assertThat(client.createUser(req)).isEqualTo(keycloakId);
+            server.verify();
         }
     }
 

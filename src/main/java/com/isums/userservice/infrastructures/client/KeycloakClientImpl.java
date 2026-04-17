@@ -91,6 +91,7 @@ public class KeycloakClientImpl implements KeycloakClient {
                 req.id() != null ? req.id() : null,
                 req.email(),
                 req.email(),
+                normalizeName(req.name()),
                 req.isEnabled(),
                 req.emailVerified() != null ? req.emailVerified() : true,
                 mergeAttributes(req.attributes(), req.identityNumber(), req.name()),
@@ -172,6 +173,14 @@ public class KeycloakClientImpl implements KeycloakClient {
         }
 
         return merged.isEmpty() ? null : merged;
+    }
+
+    private static String normalizeName(String name) {
+        if (name == null) {
+            return null;
+        }
+        String normalized = name.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     public String resetPassword(String keycloakId) {

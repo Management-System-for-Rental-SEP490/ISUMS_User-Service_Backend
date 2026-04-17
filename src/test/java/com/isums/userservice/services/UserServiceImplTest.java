@@ -115,7 +115,7 @@ class UserServiceImplTest {
         @DisplayName("returns mapped list when repository has users")
         void returnsMappedList() {
             User u1 = buildUser(true);
-            UserDto dto = new UserDto(userId.toString(), "Alice", keycloakId, email, "0123456789");
+            UserDto dto = new UserDto(userId.toString(), "Alice", keycloakId, email, "0123456789", "0900000000");
             when(userRepository.findAll()).thenReturn(List.of(u1));
             when(userMapper.mapUsers(List.of(u1))).thenReturn(List.of(dto));
 
@@ -390,7 +390,7 @@ class UserServiceImplTest {
         void happyPath() {
             CreateTechnicalStaffRequest r = req();
             Role role = buildRole(Roles.TECHNICAL_STAFF);
-            UserDto dto = new UserDto(userId.toString(), "Bob", "kc-2", "bob@example.com", "X1");
+            UserDto dto = new UserDto(userId.toString(), "Bob", "kc-2", "bob@example.com", "X1", "0999999999");
 
             when(userRepository.existsByEmail(r.email())).thenReturn(false);
             when(keycloakClient.createUser(any(KeycloakCreateUserRequest.class))).thenReturn("kc-2");

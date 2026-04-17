@@ -12,6 +12,7 @@ public record KeycloakUserRepresentation(
         @Nullable UUID id,
         String username,
         String email,
+        String firstName,
         Boolean enabled,
         Boolean emailVerified,
         Map<String, List<String>> attributes,
