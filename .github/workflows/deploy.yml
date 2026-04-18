@@ -3,11 +3,12 @@ name: Deploy
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
-  packages: write
+  packages: read
 
 jobs:
   deploy:
@@ -15,5 +16,6 @@ jobs:
     with:
       service_name: user-service
       xmx: 640m
+      ecr_keep_tagged: 8
     secrets:
       GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
