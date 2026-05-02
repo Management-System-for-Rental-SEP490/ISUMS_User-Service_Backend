@@ -88,7 +88,8 @@ class UserControllerTest {
     @Test
     @DisplayName("GET /api/users returns 200 with list")
     void getAll() throws Exception {
-        UserDto dto = new UserDto("id", "Alice", "kc", "a@b.com", "ID", "0900000000");
+        UserDto dto = new UserDto("id", "Alice", "kc", "a@b.com", "ID", "0900000000",
+                null, null, null);
         when(userService.getAllUsers()).thenReturn(List.of(dto));
 
         mvc.perform(get("/api/users"))
@@ -131,7 +132,8 @@ class UserControllerTest {
     @Test
     @DisplayName("GET /api/users/{email} returns 200 with user dto")
     void getByEmail() throws Exception {
-        UserDto dto = new UserDto("id", "Alice", "kc", "a@b.com", "ID", "0900000000");
+        UserDto dto = new UserDto("id", "Alice", "kc", "a@b.com", "ID", "0900000000",
+                null, null, null);
         when(userService.getUserByEmail("a@b.com")).thenReturn(dto);
 
         mvc.perform(get("/api/users/{email}", "a@b.com"))
@@ -230,7 +232,8 @@ class UserControllerTest {
     void createStaff() throws Exception {
         CreateTechnicalStaffRequest req =
                 new CreateTechnicalStaffRequest("Bob", "bob@b.com", "0900", "ID");
-        UserDto dto = new UserDto("id", "Bob", "kc-2", "bob@b.com", "ID", "0999999999");
+        UserDto dto = new UserDto("id", "Bob", "kc-2", "bob@b.com", "ID", "0999999999",
+                null, null, null);
         when(userService.createTechnicalStaff(any(CreateTechnicalStaffRequest.class))).thenReturn(dto);
 
         mvc.perform(post("/api/users/technical-staff")

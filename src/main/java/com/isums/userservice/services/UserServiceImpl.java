@@ -132,6 +132,32 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public void updateLanguage(String keycloakId, String language) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        user.setLanguage(language);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+        log.info("User language updated userId={} language={}", user.getId(), language);
+    }
+
+    @Override
+    @Transactional
+    public void updatePhone(String keycloakId, String phoneNumber) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        String normalised = phoneNumber == null ? null : phoneNumber.trim();
+        if (normalised != null && normalised.startsWith("+")) {
+            normalised = normalised.substring(1);
+        }
+        user.setPhoneNumber(normalised);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+        log.info("User phone updated userId={} phone={}", user.getId(), normalised);
+    }
+
+    @Override
+    @Transactional
     public void activateIfNewUser(DepositPaidEvent event) {
         User user = userRepository.findById(event.tenantId())
                 .orElseThrow(() -> new NotFoundException("User not found: " + event.tenantId()));
@@ -153,7 +179,7 @@ public class UserServiceImpl implements UserService {
                     .userId(user.getId())
                     .email(user.getEmail())
                     .name(user.getName())
-                    .tempPassword(tempPassword)
+                    .password(tempPassword)
                     .firstRentPaymentUrl(event.firstRentPaymentUrl())
                     .firstRentAmount(event.firstRentAmount())
                     .firstRentDueDate(event.firstRentDueDate())
@@ -171,7 +197,6 @@ public class UserServiceImpl implements UserService {
 
         UUID internalId = UUID.randomUUID();
 
-        // Tạo Keycloak user với enabled=true, tempPassword ngay
         KeycloakCreateUserRequest keycloakReq = new KeycloakCreateUserRequest(
                 internalId,
                 req.email(),
@@ -313,6 +338,23 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public List<StaffDto> getAllManagers() {
+        List<User> users = userRepository.findUsersByRoleCode("MANAGER");
+
+        return users.stream()
+                .sorted(java.util.Comparator.comparing(
+                        u -> u.getName() == null ? "" : u.getName(),
+                        String.CASE_INSENSITIVE_ORDER))
+                .map(u -> new StaffDto(
+                        u.getId(),
+                        u.getName(),
+                        u.getEmail(),
+                        u.getPhoneNumber()
+                ))
+                .toList();
+    }
+
+    @Override
     public UserProfileDto getUserById(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -329,6 +371,7 @@ public class UserServiceImpl implements UserService {
                 .mainHouseId(user.getMainHouseId())
                 .phoneNumber(user.getPhoneNumber())
                 .roles(roles)
+                .language(user.getLanguage())
                 .build();
     }
 
@@ -365,6 +408,7 @@ public class UserServiceImpl implements UserService {
                 .mainHouseId(user.getMainHouseId())
                 .phoneNumber(user.getPhoneNumber())
                 .roles(roles)
+                .language(user.getLanguage())
                 .build();
     }
 }

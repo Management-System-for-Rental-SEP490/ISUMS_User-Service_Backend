@@ -183,6 +183,42 @@ public class KeycloakClientImpl implements KeycloakClient {
         return normalized.isEmpty() ? null : normalized;
     }
 
+    /**
+     * PUT /admin/realms/{realm}/users/{id}/execute-actions-email
+     * Body: JSON array of required actions, e.g. ["UPDATE_PASSWORD"].
+     * Optional query params: lifespan, client_id, redirect_uri.
+     */
+    @Override
+    public void sendExecuteActionsEmail(String keycloakId, List<String> actions, Integer lifespanSec) {
+        if (actions == null || actions.isEmpty()) {
+            log.warn("sendExecuteActionsEmail: no actions, skip keycloakId={}", keycloakId);
+            return;
+        }
+        final String base = "/admin/realms/" + props.getRealm()
+                + "/users/" + keycloakId + "/execute-actions-email";
+        final String uri = (lifespanSec != null)
+                ? base + "?lifespan=" + lifespanSec
+                : base;
+        String token = getAccessToken();
+
+        try {
+            keycloakRestClient.put()
+                    .uri(uri)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .headers(h -> h.setBearerAuth(token))
+                    .body(actions)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("Keycloak execute-actions-email sent keycloakId={} actions={}", keycloakId, actions);
+        } catch (RestClientResponseException ex) {
+            String responseBody = ex.getResponseBodyAsString();
+            // Don't block user creation if SMTP is misconfigured — log and continue.
+            log.error("Keycloak execute-actions-email failed keycloakId={} status={} body={}",
+                    keycloakId, ex.getStatusCode().value(), responseBody);
+        }
+    }
+
     public String resetPassword(String keycloakId) {
         String tempPassword = UUID.randomUUID().toString().substring(0, 8) + "@Aa1";
         final String uri = "/admin/realms/" + props.getRealm()

@@ -115,7 +115,8 @@ class UserServiceImplTest {
         @DisplayName("returns mapped list when repository has users")
         void returnsMappedList() {
             User u1 = buildUser(true);
-            UserDto dto = new UserDto(userId.toString(), "Alice", keycloakId, email, "0123456789", "0900000000");
+            UserDto dto = new UserDto(userId.toString(), "Alice", keycloakId, email, "0123456789", "0900000000",
+                    null, null, null); // dateOfIssue, placeOfIssue, permanentAddress
             when(userRepository.findAll()).thenReturn(List.of(u1));
             when(userMapper.mapUsers(List.of(u1))).thenReturn(List.of(dto));
 
@@ -317,23 +318,26 @@ class UserServiceImplTest {
         }
 
         @Test
-        @DisplayName("activates disabled user, resets password and publishes UserActivatedEvent")
+        @DisplayName("activates disabled user (no password reset) and publishes UserActivatedEvent")
         void activatesAndPublishes() {
             User user = buildUser(false);
             DepositPaidEvent event = eventWith(userId, "https://pay.example/1");
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-            when(keycloakClient.activateAndResetPassword(keycloakId)).thenReturn("Tmp@123");
 
             service.activateIfNewUser(event);
 
             verify(userRepository).save(any(User.class));
+            verify(keycloakClient).activeUser(keycloakId);
+            // Password reset MUST NOT happen here — tenant uses Keycloak "Forgot
+            // password" flow to avoid plaintext credentials on Kafka.
+            verify(keycloakClient, never()).activateAndResetPassword(anyString());
+            verify(keycloakClient, never()).resetPassword(anyString());
             assertThat(user.getIsEnabled()).isTrue();
 
             ArgumentCaptor<Object> msgCap = ArgumentCaptor.forClass(Object.class);
             verify(kafka).send(eq("user-activated-topic"), msgCap.capture());
             UserActivatedEvent msg = (UserActivatedEvent) msgCap.getValue();
             assertThat(msg.userId()).isEqualTo(userId);
-            assertThat(msg.tempPassword()).isEqualTo("Tmp@123");
             assertThat(msg.firstRentPaymentUrl()).isEqualTo("https://pay.example/1");
         }
 
@@ -346,6 +350,7 @@ class UserServiceImplTest {
 
             service.activateIfNewUser(event);
 
+            verify(keycloakClient, never()).activeUser(anyString());
             verify(keycloakClient, never()).activateAndResetPassword(anyString());
             verify(userRepository, never()).save(any());
             verify(kafka).send(eq("user-activated-topic"), any(UserActivatedEvent.class));
@@ -357,11 +362,11 @@ class UserServiceImplTest {
             User user = buildUser(false);
             DepositPaidEvent event = eventWith(userId, null);
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-            when(keycloakClient.activateAndResetPassword(keycloakId)).thenReturn("Tmp@123");
 
             service.activateIfNewUser(event);
 
             verify(userRepository).save(any(User.class));
+            verify(keycloakClient).activeUser(keycloakId);
             verifyNoInteractions(kafka);
         }
 
@@ -390,7 +395,8 @@ class UserServiceImplTest {
         void happyPath() {
             CreateTechnicalStaffRequest r = req();
             Role role = buildRole(Roles.TECHNICAL_STAFF);
-            UserDto dto = new UserDto(userId.toString(), "Bob", "kc-2", "bob@example.com", "X1", "0999999999");
+            UserDto dto = new UserDto(userId.toString(), "Bob", "kc-2", "bob@example.com", "X1", "0999999999",
+                    null, null, null); // dateOfIssue, placeOfIssue, permanentAddress
 
             when(userRepository.existsByEmail(r.email())).thenReturn(false);
             when(keycloakClient.createUser(any(KeycloakCreateUserRequest.class))).thenReturn("kc-2");
