@@ -5,7 +5,6 @@ import com.isums.userservice.infrastructures.abstracts.UserRoleService;
 import com.isums.userservice.infrastructures.abstracts.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -80,11 +79,6 @@ public class UserController {
         return ApiResponses.ok(null, "success to update language");
     }
 
-    /**
-     * Update the calling user's primary phone number — drives voice
-     * notifications, so the user must be able to keep it current
-     * without going through admin / Keycloak.
-     */
     @PutMapping("/me/phone")
     public ApiResponse<Void> updateMyPhone(@RequestBody @Valid UpdatePhoneRequest req,
                                             @AuthenticationPrincipal Jwt jwt) {
@@ -105,12 +99,6 @@ public class UserController {
         return ApiResponses.ok(res, "Get staffs successfully");
     }
 
-    /**
-     * Create a new MANAGER (region operations contact). Landlord-only —
-     * matches the technical-staff endpoint authorisation. Sends an
-     * activation email with a temporary password (Keycloak forces
-     * UPDATE_PASSWORD on first login).
-     */
     @PostMapping("/manager")
     @PreAuthorize("hasRole('LANDLORD')")
     public ApiResponse<UserDto> createManager(@RequestBody @Valid CreateManagerRequest req) {
@@ -118,12 +106,6 @@ public class UserController {
         return ApiResponses.created(res, "Manager created successfully");
     }
 
-    /**
-     * List all MANAGER users — feeds the FE escalation-target picker so
-     * a tenant (or admin on their behalf) can pin an explicit manager to
-     * be called when DTMF=2 / NO_ANSWER triggers escalation. Reuses
-     * StaffDto since the FE only needs id+name+email+phone.
-     */
     @GetMapping("/managers")
     public ApiResponse<List<StaffDto>> getAllManagers() {
         List<StaffDto> res = userService.getAllManagers();

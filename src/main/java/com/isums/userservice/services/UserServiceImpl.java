@@ -163,18 +163,20 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new NotFoundException("User not found: " + event.tenantId()));
 
         String tempPassword = null;
+        boolean wasNewlyActivated = false;
 
         if (!user.getIsEnabled()) {
             tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
             user.setIsEnabled(true);
             user.setUpdatedAt(Instant.now());
             userRepository.save(user);
+            wasNewlyActivated = true;
             log.info("[Activation] User activated userId={}", user.getId());
         } else {
-            log.info("[Activation] User already enabled userId={} — skipping activation but still sending mail", user.getId());
+            log.info("[Activation] User already enabled userId={} — skipping welcome email", user.getId());
         }
 
-        if (event.firstRentPaymentUrl() != null) {
+        if (wasNewlyActivated && event.firstRentPaymentUrl() != null) {
             kafka.send("user-activated-topic", UserActivatedEvent.builder()
                     .userId(user.getId())
                     .email(user.getEmail())

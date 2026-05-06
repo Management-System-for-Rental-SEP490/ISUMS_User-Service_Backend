@@ -342,8 +342,8 @@ class UserServiceImplTest {
         }
 
         @Test
-        @DisplayName("does not activate already-enabled user but still publishes event")
-        void alreadyEnabledStillPublishes() {
+        @DisplayName("does not activate already-enabled user and skips welcome email")
+        void alreadyEnabledSkipsWelcomeEmail() {
             User user = buildUser(true);
             DepositPaidEvent event = eventWith(userId, "https://pay.example/1");
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
@@ -353,7 +353,7 @@ class UserServiceImplTest {
             verify(keycloakClient, never()).activeUser(anyString());
             verify(keycloakClient, never()).activateAndResetPassword(anyString());
             verify(userRepository, never()).save(any());
-            verify(kafka).send(eq("user-activated-topic"), any(UserActivatedEvent.class));
+            verifyNoInteractions(kafka);
         }
 
         @Test
