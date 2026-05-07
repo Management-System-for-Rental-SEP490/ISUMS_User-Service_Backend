@@ -5,7 +5,6 @@ import com.isums.userservice.infrastructures.abstracts.UserRoleService;
 import com.isums.userservice.infrastructures.abstracts.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -74,6 +73,19 @@ public class UserController {
         return ApiResponses.ok(null, "success to update main house");
     }
 
+    @PutMapping("/language")
+    public ApiResponse<Void> updateLanguage(@RequestBody UpdateLanguageRequest req, @AuthenticationPrincipal Jwt jwt) {
+        userService.updateLanguage(jwt.getSubject(), req.language());
+        return ApiResponses.ok(null, "success to update language");
+    }
+
+    @PutMapping("/me/phone")
+    public ApiResponse<Void> updateMyPhone(@RequestBody @Valid UpdatePhoneRequest req,
+                                            @AuthenticationPrincipal Jwt jwt) {
+        userService.updatePhone(jwt.getSubject(), req.phoneNumber());
+        return ApiResponses.ok(null, "Phone updated");
+    }
+
     @PostMapping("/technical-staff")
     @PreAuthorize("hasRole('LANDLORD')")
     public ApiResponse<UserDto> createTechnicalStaff(@RequestBody @Valid CreateTechnicalStaffRequest req) {
@@ -87,9 +99,29 @@ public class UserController {
         return ApiResponses.ok(res, "Get staffs successfully");
     }
 
+    @PostMapping("/manager")
+    @PreAuthorize("hasRole('LANDLORD')")
+    public ApiResponse<UserDto> createManager(@RequestBody @Valid CreateManagerRequest req) {
+        UserDto res = userService.createManger(req);
+        return ApiResponses.created(res, "Manager created successfully");
+    }
+
+    @GetMapping("/managers")
+    public ApiResponse<List<StaffDto>> getAllManagers() {
+        List<StaffDto> res = userService.getAllManagers();
+        return ApiResponses.ok(res, "Get managers successfully");
+    }
+
     @GetMapping("/byId/{userId}")
     public ApiResponse<UserProfileDto> getUserById(@PathVariable UUID userId) {
         UserProfileDto res = userService.getUserById(userId);
         return ApiResponses.ok(res, "Get user successfully");
+    }
+
+    @PostMapping("/{userId}/admin-reset-password")
+    @PreAuthorize("hasRole('LANDLORD')")
+    public ApiResponse<String> adminResetPassword(@PathVariable UUID userId) {
+        String tempPassword = userService.adminResetPassword(userId);
+        return ApiResponses.ok(tempPassword, "Password reset successfully");
     }
 }

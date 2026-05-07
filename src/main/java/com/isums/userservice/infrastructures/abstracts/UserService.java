@@ -20,11 +20,21 @@ public interface UserService {
 
     void updateMainHouse(String keycloakId, UUID houseId);
 
+    void updateLanguage(String keycloakId, String language);
+
+    void updatePhone(String keycloakId, String phoneNumber);
+
     void activateIfNewUser(DepositPaidEvent event);
 
     UserDto createTechnicalStaff(CreateTechnicalStaffRequest req);
 
+    UserDto createManger(CreateManagerRequest req);
+
     List<StaffDto> getAllStaff();
 
+    List<StaffDto> getAllManagers();
+
     UserProfileDto getUserById(UUID userId);
+
+    String adminResetPassword(UUID userId);
 }

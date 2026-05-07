@@ -132,28 +132,56 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public void updateLanguage(String keycloakId, String language) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        user.setLanguage(language);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+        log.info("User language updated userId={} language={}", user.getId(), language);
+    }
+
+    @Override
+    @Transactional
+    public void updatePhone(String keycloakId, String phoneNumber) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        String normalised = phoneNumber == null ? null : phoneNumber.trim();
+        if (normalised != null && normalised.startsWith("+")) {
+            normalised = normalised.substring(1);
+        }
+        user.setPhoneNumber(normalised);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+        log.info("User phone updated userId={} phone={}", user.getId(), normalised);
+    }
+
+    @Override
+    @Transactional
     public void activateIfNewUser(DepositPaidEvent event) {
         User user = userRepository.findById(event.tenantId())
                 .orElseThrow(() -> new NotFoundException("User not found: " + event.tenantId()));
 
         String tempPassword = null;
+        boolean wasNewlyActivated = false;
 
         if (!user.getIsEnabled()) {
             tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
             user.setIsEnabled(true);
             user.setUpdatedAt(Instant.now());
             userRepository.save(user);
+            wasNewlyActivated = true;
             log.info("[Activation] User activated userId={}", user.getId());
         } else {
-            log.info("[Activation] User already enabled userId={} — skipping activation but still sending mail", user.getId());
+            log.info("[Activation] User already enabled userId={} — skipping welcome email", user.getId());
         }
 
-        if (event.firstRentPaymentUrl() != null) {
+        if (wasNewlyActivated && event.firstRentPaymentUrl() != null) {
             kafka.send("user-activated-topic", UserActivatedEvent.builder()
                     .userId(user.getId())
                     .email(user.getEmail())
                     .name(user.getName())
-                    .tempPassword(tempPassword)
+                    .password(tempPassword)
                     .firstRentPaymentUrl(event.firstRentPaymentUrl())
                     .firstRentAmount(event.firstRentAmount())
                     .firstRentDueDate(event.firstRentDueDate())
@@ -171,7 +199,6 @@ public class UserServiceImpl implements UserService {
 
         UUID internalId = UUID.randomUUID();
 
-        // Tạo Keycloak user với enabled=true, tempPassword ngay
         KeycloakCreateUserRequest keycloakReq = new KeycloakCreateUserRequest(
                 internalId,
                 req.email(),
@@ -232,10 +259,94 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserDto createManger(CreateManagerRequest req) {
+        if (userRepository.existsByEmail(req.email())) {
+            throw new ConflictException("Email " + req.email() + " already exists");
+        }
+
+        UUID internalId = UUID.randomUUID();
+
+        KeycloakCreateUserRequest keycloakReq = new KeycloakCreateUserRequest(
+                internalId,
+                req.email(),
+                true,
+                true,
+                req.identityNumber(),
+                req.phoneNumber(),
+                req.name(),
+                Map.of("roles", List.of(Roles.MANAGER)),
+                List.of("UPDATE_PASSWORD")
+        );
+
+        String keycloakId = keycloakClient.createUser(keycloakReq);
+        if (keycloakId == null || keycloakId.isBlank()) {
+            throw new IllegalStateException("Keycloak did not return user id");
+        }
+
+        String tempPassword = keycloakClient.resetPassword(keycloakId);
+
+        User user = User.builder()
+                .id(internalId)
+                .keycloakId(keycloakId)
+                .email(req.email())
+                .name(req.name())
+                .identityNumber(req.identityNumber() != null ? req.identityNumber() : "")
+                .phoneNumber(req.phoneNumber())
+                .isEnabled(true)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        userRepository.save(user);
+
+        Role role = roleRepository.findByCode(Roles.MANAGER)
+                .orElseThrow(() -> new NotFoundException("MANAGER role not found"));
+
+        userRoleRepository.save(UserRole.builder()
+                .id(new UserRoleId(internalId, role.getId()))
+                .user(user)
+                .role(role)
+                .createdAt(Instant.now())
+                .build());
+
+        log.info("[Manager] Created userId={} email={}", internalId, req.email());
+
+        kafka.send("notification-email", SendEmailEvent.builder()
+                .to(req.email())
+                .templateCode("user_activated")
+                .params(Map.of(
+                        "name", req.name(),
+                        "email", req.email(),
+                        "password", tempPassword,
+                        "hasInvoice", false
+                ))
+                .build());
+
+        return userMapper.mapUser(user);
+    }
+
+    @Override
     public List<StaffDto> getAllStaff() {
         List<User> users = userRepository.findUsersByRoleCode("TECHNICAL_STAFF");
 
         return users.stream()
+                .map(u -> new StaffDto(
+                        u.getId(),
+                        u.getName(),
+                        u.getEmail(),
+                        u.getPhoneNumber()
+                ))
+                .toList();
+    }
+
+    @Override
+    public List<StaffDto> getAllManagers() {
+        List<User> users = userRepository.findUsersByRoleCode("MANAGER");
+
+        return users.stream()
+                .sorted(java.util.Comparator.comparing(
+                        u -> u.getName() == null ? "" : u.getName(),
+                        String.CASE_INSENSITIVE_ORDER))
                 .map(u -> new StaffDto(
                         u.getId(),
                         u.getName(),
@@ -262,6 +373,7 @@ public class UserServiceImpl implements UserService {
                 .mainHouseId(user.getMainHouseId())
                 .phoneNumber(user.getPhoneNumber())
                 .roles(roles)
+                .language(user.getLanguage())
                 .build();
     }
 
@@ -298,6 +410,37 @@ public class UserServiceImpl implements UserService {
                 .mainHouseId(user.getMainHouseId())
                 .phoneNumber(user.getPhoneNumber())
                 .roles(roles)
+                .language(user.getLanguage())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public String adminResetPassword(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found: " + userId));
+
+        String tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
+
+        if (!Boolean.TRUE.equals(user.getIsEnabled())) {
+            user.setIsEnabled(true);
+            user.setUpdatedAt(Instant.now());
+            userRepository.save(user);
+        }
+
+        log.info("[Admin] Password reset for userId={} email={}", userId, user.getEmail());
+
+        kafka.send("notification-email", SendEmailEvent.builder()
+                .to(user.getEmail())
+                .templateCode("user_activated")
+                .params(Map.of(
+                        "name", user.getName() != null ? user.getName() : user.getEmail(),
+                        "email", user.getEmail(),
+                        "password", tempPassword,
+                        "hasInvoice", false
+                ))
+                .build());
+
+        return tempPassword;
     }
 }

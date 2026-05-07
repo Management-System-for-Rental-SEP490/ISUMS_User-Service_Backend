@@ -91,6 +91,7 @@ public class KeycloakClientImpl implements KeycloakClient {
                 req.id() != null ? req.id() : null,
                 req.email(),
                 req.email(),
+                normalizeName(req.name()),
                 req.isEnabled(),
                 req.emailVerified() != null ? req.emailVerified() : true,
                 mergeAttributes(req.attributes(), req.identityNumber(), req.name()),
@@ -132,7 +133,10 @@ public class KeycloakClientImpl implements KeycloakClient {
         final String uri = "/admin/realms/" + props.getRealm() + "/users/" + keycloakId;
         String token = getAccessToken();
 
-        Map<String, Object> body = Map.of("enabled", true);
+        Map<String, Object> body = new HashMap<>();
+        body.put("enabled", true);
+        body.put("emailVerified", true);
+        body.put("requiredActions", List.of());
 
         try {
             keycloakRestClient.put()
@@ -143,7 +147,7 @@ public class KeycloakClientImpl implements KeycloakClient {
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info("Keycloak user activated keycloakId={}", keycloakId);
+            log.info("Keycloak user activated keycloakId={} requiredActions=cleared", keycloakId);
         } catch (RestClientResponseException ex) {
             String responseBody = ex.getResponseBodyAsString();
             throw new IllegalStateException(
@@ -174,6 +178,50 @@ public class KeycloakClientImpl implements KeycloakClient {
         return merged.isEmpty() ? null : merged;
     }
 
+    private static String normalizeName(String name) {
+        if (name == null) {
+            return null;
+        }
+        String normalized = name.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    /**
+     * PUT /admin/realms/{realm}/users/{id}/execute-actions-email
+     * Body: JSON array of required actions, e.g. ["UPDATE_PASSWORD"].
+     * Optional query params: lifespan, client_id, redirect_uri.
+     */
+    @Override
+    public void sendExecuteActionsEmail(String keycloakId, List<String> actions, Integer lifespanSec) {
+        if (actions == null || actions.isEmpty()) {
+            log.warn("sendExecuteActionsEmail: no actions, skip keycloakId={}", keycloakId);
+            return;
+        }
+        final String base = "/admin/realms/" + props.getRealm()
+                + "/users/" + keycloakId + "/execute-actions-email";
+        final String uri = (lifespanSec != null)
+                ? base + "?lifespan=" + lifespanSec
+                : base;
+        String token = getAccessToken();
+
+        try {
+            keycloakRestClient.put()
+                    .uri(uri)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .headers(h -> h.setBearerAuth(token))
+                    .body(actions)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("Keycloak execute-actions-email sent keycloakId={} actions={}", keycloakId, actions);
+        } catch (RestClientResponseException ex) {
+            String responseBody = ex.getResponseBodyAsString();
+            // Don't block user creation if SMTP is misconfigured — log and continue.
+            log.error("Keycloak execute-actions-email failed keycloakId={} status={} body={}",
+                    keycloakId, ex.getStatusCode().value(), responseBody);
+        }
+    }
+
     public String resetPassword(String keycloakId) {
         String tempPassword = UUID.randomUUID().toString().substring(0, 8) + "@Aa1";
         final String uri = "/admin/realms/" + props.getRealm()
@@ -183,7 +231,7 @@ public class KeycloakClientImpl implements KeycloakClient {
         Map<String, Object> body = Map.of(
                 "type", "password",
                 "value", tempPassword,
-                "temporary", true
+                "temporary", false
         );
 
         try {
@@ -195,7 +243,7 @@ public class KeycloakClientImpl implements KeycloakClient {
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info("Keycloak password reset keycloakId={}", keycloakId);
+            log.info("Keycloak password reset keycloakId={} temporary=false", keycloakId);
             return tempPassword;
         } catch (RestClientResponseException ex) {
             throw new IllegalStateException("Reset password failed: HTTP "

@@ -1,5 +1,7 @@
 package com.isums.userservice.domains.entities;
 
+import com.isums.common.i18n.TranslationMap;
+import com.isums.common.i18n.TranslationMapConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -7,8 +9,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -34,4 +34,8 @@ public class Role {
 
     @Column(columnDefinition="text")
     private String description;
+
+    @Column(name = "description_translations", columnDefinition = "text")
+    @Convert(converter = TranslationMapConverter.class)
+    private TranslationMap descriptionTranslations;
 }
