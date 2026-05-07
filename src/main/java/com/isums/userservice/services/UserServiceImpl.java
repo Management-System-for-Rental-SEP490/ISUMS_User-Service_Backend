@@ -413,4 +413,34 @@ public class UserServiceImpl implements UserService {
                 .language(user.getLanguage())
                 .build();
     }
+
+    @Override
+    @Transactional
+    public String adminResetPassword(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found: " + userId));
+
+        String tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
+
+        if (!Boolean.TRUE.equals(user.getIsEnabled())) {
+            user.setIsEnabled(true);
+            user.setUpdatedAt(Instant.now());
+            userRepository.save(user);
+        }
+
+        log.info("[Admin] Password reset for userId={} email={}", userId, user.getEmail());
+
+        kafka.send("notification-email", SendEmailEvent.builder()
+                .to(user.getEmail())
+                .templateCode("user_activated")
+                .params(Map.of(
+                        "name", user.getName() != null ? user.getName() : user.getEmail(),
+                        "email", user.getEmail(),
+                        "password", tempPassword,
+                        "hasInvoice", false
+                ))
+                .build());
+
+        return tempPassword;
+    }
 }

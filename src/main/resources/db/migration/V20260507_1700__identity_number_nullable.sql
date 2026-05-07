@@ -1,0 +1,1 @@
+ALTER TABLE users ALTER COLUMN identity_number DROP NOT NULL;

@@ -39,7 +39,7 @@ public class User implements Serializable {
     @Column(name = "phone_number")
     private String phoneNumber;
 
-    @Column(name = "identity_number", nullable = false)
+    @Column(name = "identity_number")
     private String identityNumber;
 
     @Column(name = "date_of_issue")

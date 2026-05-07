@@ -35,4 +35,6 @@ public interface UserService {
     List<StaffDto> getAllManagers();
 
     UserProfileDto getUserById(UUID userId);
+
+    String adminResetPassword(UUID userId);
 }

@@ -117,4 +117,11 @@ public class UserController {
         UserProfileDto res = userService.getUserById(userId);
         return ApiResponses.ok(res, "Get user successfully");
     }
+
+    @PostMapping("/{userId}/admin-reset-password")
+    @PreAuthorize("hasRole('LANDLORD')")
+    public ApiResponse<String> adminResetPassword(@PathVariable UUID userId) {
+        String tempPassword = userService.adminResetPassword(userId);
+        return ApiResponses.ok(tempPassword, "Password reset successfully");
+    }
 }

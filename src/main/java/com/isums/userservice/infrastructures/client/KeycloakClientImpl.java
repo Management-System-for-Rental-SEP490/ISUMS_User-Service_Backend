@@ -133,7 +133,10 @@ public class KeycloakClientImpl implements KeycloakClient {
         final String uri = "/admin/realms/" + props.getRealm() + "/users/" + keycloakId;
         String token = getAccessToken();
 
-        Map<String, Object> body = Map.of("enabled", true);
+        Map<String, Object> body = new HashMap<>();
+        body.put("enabled", true);
+        body.put("emailVerified", true);
+        body.put("requiredActions", List.of());
 
         try {
             keycloakRestClient.put()
@@ -144,7 +147,7 @@ public class KeycloakClientImpl implements KeycloakClient {
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info("Keycloak user activated keycloakId={}", keycloakId);
+            log.info("Keycloak user activated keycloakId={} requiredActions=cleared", keycloakId);
         } catch (RestClientResponseException ex) {
             String responseBody = ex.getResponseBodyAsString();
             throw new IllegalStateException(
@@ -228,7 +231,7 @@ public class KeycloakClientImpl implements KeycloakClient {
         Map<String, Object> body = Map.of(
                 "type", "password",
                 "value", tempPassword,
-                "temporary", true
+                "temporary", false
         );
 
         try {
@@ -240,7 +243,7 @@ public class KeycloakClientImpl implements KeycloakClient {
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info("Keycloak password reset keycloakId={}", keycloakId);
+            log.info("Keycloak password reset keycloakId={} temporary=false", keycloakId);
             return tempPassword;
         } catch (RestClientResponseException ex) {
             throw new IllegalStateException("Reset password failed: HTTP "
