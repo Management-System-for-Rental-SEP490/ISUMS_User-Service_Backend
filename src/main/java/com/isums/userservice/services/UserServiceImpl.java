@@ -58,15 +58,24 @@ public class UserServiceImpl implements UserService {
     @CacheEvict(cacheNames = "allUsers", allEntries = true)
     public String createUser(KeycloakCreateUserRequest req) {
 
-        boolean isExistEmail = userRepository.existsByEmail(req.email());
-        if (isExistEmail) {
-            log.warn("Email already exists:  {}", req.email());
-            throw new ConflictException("Email " + req.email() + " already exists");
+        var existing = userRepository.findByEmailIgnoreCase(req.email());
+        if (existing.isPresent()) {
+            User u = existing.get();
+            log.warn("createUser idempotent hit: email already in DB email={} keycloakId={}", req.email(), u.getKeycloakId());
+            if (u.getKeycloakId() == null || u.getKeycloakId().isBlank()) {
+                String recovered = keycloakClient.findUserIdByEmail(req.email())
+                        .orElseGet(() -> keycloakClient.createUser(req));
+                u.setKeycloakId(recovered);
+                u.setUpdatedAt(Instant.now());
+                userRepository.save(u);
+                return recovered;
+            }
+            return u.getKeycloakId();
         }
 
         String keycloakUserId = keycloakClient.createUser(req);
         if (keycloakUserId == null || keycloakUserId.isBlank()) {
-            throw new IllegalStateException("Keycloak did not return user id");
+            throw new IllegalStateException("Keycloak did not return user id email=" + req.email());
         }
 
         User user = User.builder()
@@ -94,10 +103,94 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         userRepository.save(user);
-        log.info("User created: {}", user);
+        log.info("User created email={} keycloakId={}", user.getEmail(), keycloakUserId);
         userRoleRepository.save(userRole);
-        log.info("User role created: {}", userRole);
         return keycloakUserId;
+    }
+
+    @Override
+    @Transactional
+    public void applyProfileFromEvent(com.isums.userservice.domains.events.CreateUserPlacedEvent event) {
+        if (event == null || event.getId() == null) return;
+        User user = userRepository.findById(event.getId()).orElse(null);
+        if (user == null) {
+            log.warn("[ProfileSync] User not found for profile sync userId={} email={}",
+                    event.getId(), event.getEmail());
+            return;
+        }
+        boolean dirty = false;
+
+        if (isNonBlank(event.getDateOfIssue())) {
+            user.setDateOfIssue(parseLocalDate(event.getDateOfIssue()));
+            dirty = true;
+        }
+        if (isNonBlank(event.getPlaceOfIssue())) {
+            user.setPlaceOfIssue(event.getPlaceOfIssue().trim());
+            dirty = true;
+        }
+        if (isNonBlank(event.getPermanentAddress())) {
+            user.setPermanentAddress(event.getPermanentAddress().trim());
+            dirty = true;
+        }
+        if (isNonBlank(event.getDateOfBirth())) {
+            user.setDateOfBirth(parseLocalDate(event.getDateOfBirth()));
+            dirty = true;
+        }
+        if (isNonBlank(event.getGender())) {
+            user.setGender(event.getGender().trim());
+            dirty = true;
+        }
+        if (isNonBlank(event.getPassportNumber())) {
+            user.setPassportNumber(event.getPassportNumber().trim());
+            dirty = true;
+        }
+        if (isNonBlank(event.getPassportIssueDate())) {
+            user.setPassportIssueDate(parseLocalDate(event.getPassportIssueDate()));
+            dirty = true;
+        }
+        if (isNonBlank(event.getPassportExpiryDate())) {
+            user.setPassportExpiryDate(parseLocalDate(event.getPassportExpiryDate()));
+            dirty = true;
+        }
+        if (isNonBlank(event.getNationality())) {
+            user.setNationality(event.getNationality().trim());
+            dirty = true;
+        }
+        if (isNonBlank(event.getVisaType())) {
+            user.setVisaType(event.getVisaType().trim());
+            dirty = true;
+        }
+        if (isNonBlank(event.getVisaExpiryDate())) {
+            user.setVisaExpiryDate(parseLocalDate(event.getVisaExpiryDate()));
+            dirty = true;
+        }
+        if (isNonBlank(event.getLanguage())) {
+            user.setLanguage(event.getLanguage().trim());
+            dirty = true;
+        } else if (user.getLanguage() == null || user.getLanguage().isBlank()) {
+            user.setLanguage("vi_VN");
+            dirty = true;
+        }
+
+        if (dirty) {
+            user.setUpdatedAt(Instant.now());
+            userRepository.save(user);
+            log.info("[ProfileSync] User profile synced userId={} email={} language={}",
+                    user.getId(), user.getEmail(), user.getLanguage());
+        }
+    }
+
+    private static boolean isNonBlank(String s) {
+        return s != null && !s.isBlank();
+    }
+
+    private static java.time.LocalDate parseLocalDate(String iso) {
+        try {
+            return java.time.LocalDate.parse(iso);
+        } catch (Exception ex) {
+            log.warn("[ProfileSync] Invalid date '{}' — skipping field", iso);
+            return null;
+        }
     }
 
     @Override
@@ -138,7 +231,7 @@ public class UserServiceImpl implements UserService {
         user.setLanguage(language);
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
-        log.info("User language updated userId={} language={}", user.getId(), language);
+        log.info("[User] Language updated keycloakId={} language={}", keycloakId, language);
     }
 
     @Override
@@ -153,40 +246,133 @@ public class UserServiceImpl implements UserService {
         user.setPhoneNumber(normalised);
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
-        log.info("User phone updated userId={} phone={}", user.getId(), normalised);
+        log.info("[User] Phone updated keycloakId={} phone={}", keycloakId, normalised);
     }
 
     @Override
     @Transactional
     public void activateIfNewUser(DepositPaidEvent event) {
-        User user = userRepository.findById(event.tenantId())
-                .orElseThrow(() -> new NotFoundException("User not found: " + event.tenantId()));
+        User user = resolveOrRecoverUser(event);
+        if (user == null) {
+            log.error("[Activation] Cannot resolve user — skipping mail tenantId={} email={}",
+                    event.tenantId(), event.tenantEmail());
+            return;
+        }
 
-        String tempPassword = null;
-        boolean wasNewlyActivated = false;
+        boolean keycloakEnabled = keycloakClient.isUserEnabled(user.getKeycloakId());
+        boolean dbEnabled = Boolean.TRUE.equals(user.getIsEnabled());
 
-        if (!user.getIsEnabled()) {
-            tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
-            user.setIsEnabled(true);
-            user.setUpdatedAt(Instant.now());
-            userRepository.save(user);
-            wasNewlyActivated = true;
-            log.info("[Activation] User activated userId={}", user.getId());
+        if (keycloakEnabled && dbEnabled) {
+            if (Boolean.TRUE.equals(event.isNewAccount())) {
+                String tempPassword = keycloakClient.resetPassword(user.getKeycloakId());
+                log.info("[Activation] New-account user already enabled — password reset + mail userId={} email={}",
+                        user.getId(), user.getEmail());
+                publishUserActivated(user, tempPassword, event);
+                return;
+            }
+            log.info("[Activation] Existing user already enabled — keeping existing password userId={} email={}",
+                    user.getId(), user.getEmail());
+            return;
+        }
+
+        String tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
+        user.setIsEnabled(true);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+        log.info("[Activation] User activated + password reset userId={} email={}", user.getId(), user.getEmail());
+
+        publishUserActivated(user, tempPassword, event);
+    }
+
+    private void publishUserActivated(User user, String tempPassword, DepositPaidEvent event) {
+        String locale = user.getLanguage() != null && !user.getLanguage().isBlank()
+                ? user.getLanguage()
+                : "vi_VN";
+        kafka.send("user-activated-topic", UserActivatedEvent.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .name(user.getName())
+                .password(tempPassword)
+                .locale(locale)
+                .firstRentPaymentUrl(event.firstRentPaymentUrl())
+                .firstRentAmount(event.firstRentAmount())
+                .firstRentDueDate(event.firstRentDueDate())
+                .build());
+    }
+
+    private User resolveOrRecoverUser(DepositPaidEvent event) {
+        if (event.tenantId() != null) {
+            var byId = userRepository.findById(event.tenantId());
+            if (byId.isPresent()) return byId.get();
+        }
+
+        if (event.tenantEmail() == null || event.tenantEmail().isBlank()) {
+            log.error("[Activation] User not found in DB and no email in event tenantId={}", event.tenantId());
+            return null;
+        }
+
+        var byEmail = userRepository.findByEmailIgnoreCase(event.tenantEmail());
+        if (byEmail.isPresent()) {
+            log.warn("[Activation] Recovered user via email lookup tenantId={} email={}",
+                    event.tenantId(), event.tenantEmail());
+            return byEmail.get();
+        }
+
+        String resolvedKeycloakId = keycloakClient.findUserIdByEmail(event.tenantEmail()).orElse(null);
+
+        if (resolvedKeycloakId == null) {
+            log.warn("[Activation] User missing in DB AND in Keycloak — recreating from event email={} tenantId={}",
+                    event.tenantEmail(), event.tenantId());
+            try {
+                String localPart = event.tenantEmail().contains("@")
+                        ? event.tenantEmail().substring(0, event.tenantEmail().indexOf('@'))
+                        : event.tenantEmail();
+                KeycloakCreateUserRequest request = new KeycloakCreateUserRequest(
+                        event.tenantId(),
+                        event.tenantEmail(),
+                        false,
+                        true,
+                        null,
+                        null,
+                        localPart,
+                        Map.of("roles", List.of("USER")),
+                        List.of("UPDATE_PASSWORD")
+                );
+                resolvedKeycloakId = keycloakClient.createUser(request);
+                log.info("[Activation] Recreated Keycloak user email={} keycloakId={}",
+                        event.tenantEmail(), resolvedKeycloakId);
+            } catch (Exception ex) {
+                log.error("[Activation] Failed to recreate user in Keycloak email={}: {}",
+                        event.tenantEmail(), ex.getMessage(), ex);
+                return null;
+            }
         } else {
-            log.info("[Activation] User already enabled userId={} — skipping welcome email", user.getId());
+            log.warn("[Activation] User exists in Keycloak but not in DB — backfilling email={} keycloakId={}",
+                    event.tenantEmail(), resolvedKeycloakId);
         }
 
-        if (wasNewlyActivated && event.firstRentPaymentUrl() != null) {
-            kafka.send("user-activated-topic", UserActivatedEvent.builder()
-                    .userId(user.getId())
-                    .email(user.getEmail())
-                    .name(user.getName())
-                    .password(tempPassword)
-                    .firstRentPaymentUrl(event.firstRentPaymentUrl())
-                    .firstRentAmount(event.firstRentAmount())
-                    .firstRentDueDate(event.firstRentDueDate())
-                    .build());
-        }
+        User backfilled = User.builder()
+                .id(event.tenantId() != null ? event.tenantId() : UUID.randomUUID())
+                .keycloakId(resolvedKeycloakId)
+                .email(event.tenantEmail())
+                .isEnabled(false)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+        userRepository.save(backfilled);
+
+        Role role = roleRepository.findByCode(Roles.TENANT)
+                .orElseThrow(() -> new NotFoundException("Tenant role not found"));
+        UserRoleId userRoleId = new UserRoleId(backfilled.getId(), role.getId());
+        UserRole userRole = UserRole.builder()
+                .id(userRoleId)
+                .user(backfilled)
+                .role(role)
+                .createdAt(Instant.now())
+                .build();
+        userRoleRepository.save(userRole);
+
+        return backfilled;
     }
 
     @Override
@@ -199,6 +385,7 @@ public class UserServiceImpl implements UserService {
 
         UUID internalId = UUID.randomUUID();
 
+        // Tạo Keycloak user với enabled=true, tempPassword ngay
         KeycloakCreateUserRequest keycloakReq = new KeycloakCreateUserRequest(
                 internalId,
                 req.email(),
@@ -259,6 +446,41 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Cacheable(value = "userByEmail", key = "#email")
+    public UserDto getUserByEmail(String email) {
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        return userMapper.mapUser(user);
+    }
+
+    @Override
+    public UserProfileDto getMe(String keycloakId) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        List<String> roles = userRoleCacheServiceImpl.getRolesCached(keycloakId);
+
+        if (user.getMainHouseId() == null) {
+            var houses = houseGrpcClient.getAllHouseByUser(user.getId());
+            if (houses.size() == 1) {
+                user.setMainHouseId(UUID.fromString(houses.getFirst().getId()));
+            }
+        }
+
+        return UserProfileDto.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .identityNumber(user.getIdentityNumber())
+                .mainHouseId(user.getMainHouseId())
+                .phoneNumber(user.getPhoneNumber())
+                .roles(roles)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = "allUsers", allEntries = true)
     public UserDto createManger(CreateManagerRequest req) {
         if (userRepository.existsByEmail(req.email())) {
             throw new ConflictException("Email " + req.email() + " already exists");
@@ -326,45 +548,36 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<StaffDto> getAllStaff() {
-        List<User> users = userRepository.findUsersByRoleCode("TECHNICAL_STAFF");
-
-        return users.stream()
-                .map(u -> new StaffDto(
-                        u.getId(),
-                        u.getName(),
-                        u.getEmail(),
-                        u.getPhoneNumber()
-                ))
-                .toList();
+        return findStaffByRole(Roles.TECHNICAL_STAFF);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<StaffDto> getAllManagers() {
-        List<User> users = userRepository.findUsersByRoleCode("MANAGER");
+        return findStaffByRole(Roles.MANAGER);
+    }
 
-        return users.stream()
-                .sorted(java.util.Comparator.comparing(
-                        u -> u.getName() == null ? "" : u.getName(),
-                        String.CASE_INSENSITIVE_ORDER))
-                .map(u -> new StaffDto(
-                        u.getId(),
-                        u.getName(),
-                        u.getEmail(),
-                        u.getPhoneNumber()
-                ))
+    private List<StaffDto> findStaffByRole(String roleCode) {
+        Role role = roleRepository.findByCode(roleCode).orElse(null);
+        if (role == null) return List.of();
+        List<UserRole> rels = userRoleRepository.findAllByRoleId(role.getId());
+        if (rels.isEmpty()) return List.of();
+        List<UUID> userIds = rels.stream().map(r -> r.getId().getUserId()).toList();
+        return userRepository.findAllById(userIds).stream()
+                .map(u -> new StaffDto(u.getId(), u.getName(), u.getEmail(), u.getPhoneNumber()))
                 .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public UserProfileDto getUserById(UUID userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        String keycloakId = user.getKeycloakId();
-
-        List<String> roles = userRoleCacheServiceImpl.getRolesCached(keycloakId);
-
+                .orElseThrow(() -> new NotFoundException("User not found: " + userId));
+        List<String> roles = user.getKeycloakId() != null
+                ? userRoleCacheServiceImpl.getRolesCached(user.getKeycloakId())
+                : List.of();
         return UserProfileDto.builder()
                 .id(user.getId())
                 .name(user.getName())
@@ -373,44 +586,6 @@ public class UserServiceImpl implements UserService {
                 .mainHouseId(user.getMainHouseId())
                 .phoneNumber(user.getPhoneNumber())
                 .roles(roles)
-                .language(user.getLanguage())
-                .build();
-    }
-
-    @Override
-    @Cacheable(value = "userByEmail", key = "#email")
-    public UserDto getUserByEmail(String email) {
-        User user = userRepository.findByEmail(email);
-
-        if (user == null) {
-            throw new NotFoundException("User not found");
-        }
-        return userMapper.mapUser(user);
-    }
-
-    @Override
-    public UserProfileDto getMe(String keycloakId) {
-        User user = userRepository.findByKeycloakId(keycloakId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
-
-        List<String> roles = userRoleCacheServiceImpl.getRolesCached(keycloakId);
-
-        if (user.getMainHouseId() == null) {
-            var houses = houseGrpcClient.getAllHouseByUser(user.getId());
-            if (houses.size() == 1) {
-                user.setMainHouseId(UUID.fromString(houses.getFirst().getId()));
-            }
-        }
-
-        return UserProfileDto.builder()
-                .id(user.getId())
-                .name(user.getName())
-                .email(user.getEmail())
-                .identityNumber(user.getIdentityNumber())
-                .mainHouseId(user.getMainHouseId())
-                .phoneNumber(user.getPhoneNumber())
-                .roles(roles)
-                .language(user.getLanguage())
                 .build();
     }
 
@@ -419,28 +594,11 @@ public class UserServiceImpl implements UserService {
     public String adminResetPassword(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found: " + userId));
-
-        String tempPassword = keycloakClient.activateAndResetPassword(user.getKeycloakId());
-
-        if (!Boolean.TRUE.equals(user.getIsEnabled())) {
-            user.setIsEnabled(true);
-            user.setUpdatedAt(Instant.now());
-            userRepository.save(user);
+        if (user.getKeycloakId() == null || user.getKeycloakId().isBlank()) {
+            throw new IllegalStateException("User has no Keycloak link userId=" + userId);
         }
-
-        log.info("[Admin] Password reset for userId={} email={}", userId, user.getEmail());
-
-        kafka.send("notification-email", SendEmailEvent.builder()
-                .to(user.getEmail())
-                .templateCode("user_activated")
-                .params(Map.of(
-                        "name", user.getName() != null ? user.getName() : user.getEmail(),
-                        "email", user.getEmail(),
-                        "password", tempPassword,
-                        "hasInvoice", false
-                ))
-                .build());
-
+        String tempPassword = keycloakClient.resetPassword(user.getKeycloakId());
+        log.info("[Admin] Password reset issued userId={} email={}", userId, user.getEmail());
         return tempPassword;
     }
 }

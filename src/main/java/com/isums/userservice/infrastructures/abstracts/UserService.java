@@ -1,6 +1,7 @@
 package com.isums.userservice.infrastructures.abstracts;
 
 import com.isums.userservice.domains.dtos.*;
+import com.isums.userservice.domains.events.CreateUserPlacedEvent;
 import com.isums.userservice.domains.events.DepositPaidEvent;
 
 import java.util.List;
@@ -11,6 +12,8 @@ public interface UserService {
     List<UserDto> getAllUsers();
 
     String createUser(KeycloakCreateUserRequest req);
+
+    void applyProfileFromEvent(CreateUserPlacedEvent event);
 
     UserDto getUserByEmail(String email);
 
