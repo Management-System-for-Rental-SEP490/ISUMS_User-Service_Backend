@@ -100,16 +100,15 @@ class EContractEventListenerTest {
         }
 
         @Test
-        @DisplayName("rethrows RuntimeException when deserialization fails")
-        void jsonFailureRethrows() throws Exception {
+        @DisplayName("acks-and-skips poison message when deserialization fails (no DLQ retry)")
+        void jsonFailureAcksAndSkips() throws Exception {
             when(objectMapper.readValue(any(String.class), eq(CreateUserPlacedEvent.class)))
                     .thenThrow(new RuntimeException("bad json"));
 
-            assertThatThrownBy(() -> listener.handleCreateUserEvent(record, ack))
-                    .isInstanceOf(RuntimeException.class);
+            listener.handleCreateUserEvent(record, ack);
 
             verifyNoInteractions(userService);
-            verify(ack, never()).acknowledge();
+            verify(ack).acknowledge();
         }
     }
 

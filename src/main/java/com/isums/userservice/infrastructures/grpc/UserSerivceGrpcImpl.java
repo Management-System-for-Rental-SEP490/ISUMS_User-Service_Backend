@@ -64,7 +64,7 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
     public void getUserByEmail(GetUserByEmailRequest request, StreamObserver<UserResponse> responseObserver) {
         try {
             String email = request.getEmail();
-            User user = userRepository.findByEmail(email);
+            User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
 
             if (user == null) {
                 responseObserver.onError(Status.NOT_FOUND
