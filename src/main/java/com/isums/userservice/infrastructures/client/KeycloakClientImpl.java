@@ -256,16 +256,10 @@ public class KeycloakClientImpl implements KeycloakClient {
                 + "/users/" + keycloakId + "/reset-password";
         String token = getAccessToken();
 
-//        Map<String, Object> body = Map.of(
-//                "type", "password",
-//                "value", tempPassword,
-//                "temporary", true
-//        );
-
         Map<String, Object> body = Map.of(
                 "type", "password",
                 "value", tempPassword,
-                "temporary", false
+                "temporary", true
         );
 
         try {
