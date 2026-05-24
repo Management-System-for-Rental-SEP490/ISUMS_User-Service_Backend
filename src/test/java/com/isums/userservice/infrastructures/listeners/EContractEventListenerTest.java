@@ -1,11 +1,12 @@
 package com.isums.userservice.infrastructures.listeners;
 
+import com.fasterxml.jackson.core.JacksonException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.isums.userservice.domains.dtos.KeycloakCreateUserRequest;
 import com.isums.userservice.domains.events.CreateUserPlacedEvent;
 import com.isums.userservice.domains.events.DepositPaidEvent;
 import com.isums.userservice.exceptions.ConflictException;
 import com.isums.userservice.infrastructures.abstracts.UserService;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -15,9 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.kafka.support.Acknowledgment;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
+import org.springframework.kafka.core.KafkaTemplate;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -26,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -37,11 +35,10 @@ class EContractEventListenerTest {
 
     @Mock private UserService userService;
     @Mock private ObjectMapper objectMapper;
-    @Mock private Acknowledgment ack;
+    @Mock private KafkaTemplate<String, Object> kafka;
 
     @InjectMocks private EContractEventListener listener;
 
-    private ConsumerRecord<String, String> record;
     private CreateUserPlacedEvent createEvent;
 
     @BeforeEach
@@ -54,7 +51,6 @@ class EContractEventListenerTest {
                 .phoneNumber("0900")
                 .isEnabled(true)
                 .build();
-        record = new ConsumerRecord<>("createUser-topic", 0, 0L, "k", "v");
     }
 
     @Nested
@@ -62,62 +58,75 @@ class EContractEventListenerTest {
     class HandleCreateUserEvent {
 
         @Test
-        @DisplayName("calls UserService.createUser and acknowledges")
+        @DisplayName("calls UserService.createUser on happy path")
         void happyPath() throws Exception {
             when(objectMapper.readValue("v", CreateUserPlacedEvent.class)).thenReturn(createEvent);
 
-            listener.handleCreateUserEvent(record, ack);
+            listener.handleCreateUserEvent("v");
 
             ArgumentCaptor<KeycloakCreateUserRequest> cap = ArgumentCaptor.forClass(KeycloakCreateUserRequest.class);
             verify(userService).createUser(cap.capture());
             assert cap.getValue().email().equals("a@b.com");
-            verify(ack).acknowledge();
+            verify(userService).applyProfileFromEvent(createEvent);
         }
 
         @Test
-        @DisplayName("swallows 409 IllegalStateException and acknowledges (idempotent)")
-        void conflictAckAndSkip() throws Exception {
+        @DisplayName("swallows 409 IllegalStateException (idempotent)")
+        void conflictSkip() throws Exception {
             when(objectMapper.readValue("v", CreateUserPlacedEvent.class)).thenReturn(createEvent);
             doThrow(new java.lang.IllegalStateException("HTTP 409"))
                     .when(userService).createUser(any());
 
-            listener.handleCreateUserEvent(record, ack);
+            listener.handleCreateUserEvent("v");
 
-            verify(ack).acknowledge();
+            verify(kafka).send(eq("createUser-dlq-topic"), any());
         }
 
         @Test
-        @DisplayName("rethrows non-409 IllegalStateException as RuntimeException")
+        @DisplayName("rethrows non-4xx IllegalStateException for retry")
         void nonConflictRethrows() throws Exception {
             when(objectMapper.readValue("v", CreateUserPlacedEvent.class)).thenReturn(createEvent);
-            doThrow(new java.lang.IllegalStateException("HTTP 500 server error"))
+            doThrow(new java.lang.IllegalStateException("server error"))
                     .when(userService).createUser(any());
 
-            assertThatThrownBy(() -> listener.handleCreateUserEvent(record, ack))
+            assertThatThrownBy(() -> listener.handleCreateUserEvent("v"))
                     .isInstanceOf(RuntimeException.class);
-
-            verify(ack, never()).acknowledge();
         }
 
         @Test
-        @DisplayName("acks-and-skips poison message when deserialization fails (no DLQ retry)")
-        void jsonFailureAcksAndSkips() throws Exception {
+        @DisplayName("ConflictException is caught + still calls applyProfileFromEvent")
+        void conflictExceptionStillAppliesProfile() throws Exception {
+            when(objectMapper.readValue("v", CreateUserPlacedEvent.class)).thenReturn(createEvent);
+            doThrow(new ConflictException("already exists"))
+                    .when(userService).createUser(any());
+
+            listener.handleCreateUserEvent("v");
+
+            verify(userService).applyProfileFromEvent(createEvent);
+        }
+
+        @Test
+        @DisplayName("swallows poison message when deserialization fails (no DLQ — no event to write)")
+        void jsonFailureSkips() throws Exception {
             when(objectMapper.readValue(any(String.class), eq(CreateUserPlacedEvent.class)))
                     .thenThrow(new RuntimeException("bad json"));
 
-            listener.handleCreateUserEvent(record, ack);
+            listener.handleCreateUserEvent("v");
 
             verifyNoInteractions(userService);
-            verify(ack).acknowledge();
+        }
+
+        @Test
+        @DisplayName("swallows null payload — no work, no retry")
+        void nullPayload() {
+            listener.handleCreateUserEvent(null);
+            verifyNoInteractions(userService, objectMapper);
         }
     }
 
     @Nested
     @DisplayName("handleDepositPaid")
     class HandleDepositPaid {
-
-        private ConsumerRecord<String, String> depositRecord = new ConsumerRecord<>(
-                "deposit-paid-enriched-topic", 0, 0L, "k", "v");
 
         private DepositPaidEvent depositEvent() {
             return DepositPaidEvent.builder()
@@ -135,39 +144,42 @@ class EContractEventListenerTest {
         }
 
         @Test
-        @DisplayName("invokes UserService.activateIfNewUser and acknowledges")
+        @DisplayName("invokes UserService.activateIfNewUser on happy path")
         void happyPath() throws Exception {
             DepositPaidEvent event = depositEvent();
             when(objectMapper.readValue("v", DepositPaidEvent.class)).thenReturn(event);
 
-            listener.handleDepositPaid(depositRecord, ack);
+            listener.handleDepositPaid("v");
 
             verify(userService).activateIfNewUser(event);
-            verify(ack).acknowledge();
         }
 
         @Test
-        @DisplayName("acks and swallows JacksonException (bad message)")
-        void jacksonExceptionAcks() throws Exception {
+        @DisplayName("swallows JacksonException (bad message)")
+        void jacksonExceptionSkips() throws Exception {
             JacksonException jex = new JacksonException("bad") {};
             when(objectMapper.readValue(any(String.class), eq(DepositPaidEvent.class))).thenThrow(jex);
 
-            listener.handleDepositPaid(depositRecord, ack);
+            listener.handleDepositPaid("v");
 
-            verify(ack).acknowledge();
             verifyNoInteractions(userService);
         }
 
         @Test
-        @DisplayName("rethrows RuntimeException when downstream service fails (for retry)")
+        @DisplayName("rethrows RuntimeException when activateIfNewUser fails (for retry)")
         void downstreamFailureRethrows() throws Exception {
             when(objectMapper.readValue("v", DepositPaidEvent.class)).thenReturn(depositEvent());
             doThrow(new ConflictException("dupe")).when(userService).activateIfNewUser(any());
 
-            assertThatThrownBy(() -> listener.handleDepositPaid(depositRecord, ack))
+            assertThatThrownBy(() -> listener.handleDepositPaid("v"))
                     .isInstanceOf(RuntimeException.class);
+        }
 
-            verify(ack, never()).acknowledge();
+        @Test
+        @DisplayName("swallows null payload — no work, no retry")
+        void nullPayload() {
+            listener.handleDepositPaid(null);
+            verifyNoInteractions(userService, objectMapper);
         }
     }
 }
