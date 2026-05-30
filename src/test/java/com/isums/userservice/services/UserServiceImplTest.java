@@ -602,7 +602,7 @@ class UserServiceImplTest {
         void returnsDto() {
             User user = buildUser(true);
             UserDto dto = new UserDto();
-            when(userRepository.findByEmail(email)).thenReturn(user);
+            when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
             when(userMapper.mapUser(user)).thenReturn(dto);
 
             assertThat(service.getUserByEmail(email)).isSameAs(dto);
@@ -611,7 +611,7 @@ class UserServiceImplTest {
         @Test
         @DisplayName("throws NotFoundException when user null")
         void notFound() {
-            when(userRepository.findByEmail(email)).thenReturn(null);
+            when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.getUserByEmail(email))
                     .isInstanceOf(NotFoundException.class);
@@ -647,6 +647,7 @@ class UserServiceImplTest {
 
             assertThat(dto.mainHouseId()).isEqualTo(autoHouse);
             assertThat(dto.roles()).containsExactly(Roles.TENANT);
+            verify(userRepository).save(user);
         }
 
         @Test

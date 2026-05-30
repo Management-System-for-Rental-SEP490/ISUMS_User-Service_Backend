@@ -157,7 +157,7 @@ class EContractEventListenerTest {
         @Test
         @DisplayName("swallows JacksonException (bad message)")
         void jacksonExceptionSkips() throws Exception {
-            JacksonException jex = new JacksonException("bad") {};
+            JacksonException jex = com.fasterxml.jackson.databind.JsonMappingException.from((com.fasterxml.jackson.core.JsonParser) null, "bad");
             when(objectMapper.readValue(any(String.class), eq(DepositPaidEvent.class))).thenThrow(jex);
 
             listener.handleDepositPaid("v");
