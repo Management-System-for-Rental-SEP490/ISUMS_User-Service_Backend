@@ -454,6 +454,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public UserProfileDto getMe(String keycloakId) {
         User user = userRepository.findByKeycloakId(keycloakId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -464,6 +465,8 @@ public class UserServiceImpl implements UserService {
             var houses = houseGrpcClient.getAllHouseByUser(user.getId());
             if (houses.size() == 1) {
                 user.setMainHouseId(UUID.fromString(houses.getFirst().getId()));
+                user.setUpdatedAt(Instant.now());
+                userRepository.save(user);
             }
         }
 
