@@ -261,8 +261,12 @@ public class UserServiceImpl implements UserService {
 
         boolean keycloakEnabled = keycloakClient.isUserEnabled(user.getKeycloakId());
         boolean dbEnabled = Boolean.TRUE.equals(user.getIsEnabled());
+        boolean mainHouseChanged = applyMainHouseFromEvent(user, event);
 
         if (keycloakEnabled && dbEnabled) {
+            if (mainHouseChanged) {
+                userRepository.save(user);
+            }
             if (Boolean.TRUE.equals(event.isNewAccount())) {
                 String tempPassword = keycloakClient.resetPassword(user.getKeycloakId());
                 log.info("[Activation] New-account user already enabled — password reset + mail userId={} email={}",
@@ -282,6 +286,15 @@ public class UserServiceImpl implements UserService {
         log.info("[Activation] User activated + password reset userId={} email={}", user.getId(), user.getEmail());
 
         publishUserActivated(user, tempPassword, event);
+    }
+
+    private boolean applyMainHouseFromEvent(User user, DepositPaidEvent event) {
+        if (event.houseId() == null || user.getMainHouseId() != null) {
+            return false;
+        }
+        user.setMainHouseId(event.houseId());
+        user.setUpdatedAt(Instant.now());
+        return true;
     }
 
     private void publishUserActivated(User user, String tempPassword, DepositPaidEvent event) {

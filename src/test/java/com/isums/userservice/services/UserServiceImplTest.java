@@ -366,6 +366,7 @@ class UserServiceImplTest {
             verify(userRepository).save(any(User.class));
             verify(keycloakClient).activateAndResetPassword(keycloakId);
             assertThat(user.getIsEnabled()).isTrue();
+            assertThat(user.getMainHouseId()).isEqualTo(event.houseId());
 
             ArgumentCaptor<Object> msgCap = ArgumentCaptor.forClass(Object.class);
             verify(kafka).send(eq("user-activated-topic"), msgCap.capture());
@@ -443,7 +444,8 @@ class UserServiceImplTest {
 
             verify(keycloakClient, never()).activateAndResetPassword(anyString());
             verify(keycloakClient).resetPassword(keycloakId);
-            verify(userRepository, never()).save(any());
+            verify(userRepository).save(user);
+            assertThat(user.getMainHouseId()).isEqualTo(event.houseId());
             ArgumentCaptor<Object> msgCap = ArgumentCaptor.forClass(Object.class);
             verify(kafka).send(eq("user-activated-topic"), msgCap.capture());
             UserActivatedEvent msg = (UserActivatedEvent) msgCap.getValue();
@@ -474,7 +476,8 @@ class UserServiceImplTest {
 
             verify(keycloakClient, never()).activateAndResetPassword(anyString());
             verify(keycloakClient, never()).resetPassword(anyString());
-            verify(userRepository, never()).save(any());
+            verify(userRepository).save(user);
+            assertThat(user.getMainHouseId()).isEqualTo(event.houseId());
             verifyNoInteractions(kafka);
         }
 
