@@ -35,6 +35,7 @@ public class UserSerivceGrpcImpl extends UserServiceGrpc.UserServiceImplBase {
             UUID userId = UUID.fromString(request.getUserId());
 
             User user = userRepository.findById(userId)
+                    .or(() -> userRepository.findByKeycloakId(request.getUserId()))
                     .orElseThrow(() -> Status.NOT_FOUND
                             .withDescription("User not found: " + request.getUserId())
                             .asRuntimeException());
